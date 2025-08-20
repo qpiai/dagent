@@ -1,8 +1,17 @@
+"""Kernel agent for orchestrating DAG execution with real Agno agents."""
+
 import asyncio
 import logging
 from typing import Dict, Any, List, Set
 from dataclasses import dataclass
 import time
+
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+
+from dag import DAG, DAGNode
+from tools import YFinanceTools, WebSearchTools, DataProcessorTools, ReportBuilderTools
+from .profiles import ProfileGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -19,93 +28,36 @@ class ExecutionResult:
     error: str = None
 
 
-class DummyAgent:
-    """Dummy agent that simulates execution without LLM calls."""
-    
-    def __init__(self, node_id: str, profile_name: str, tools: List[str], task_description: str):
-        self.node_id = node_id
-        self.profile_name = profile_name
-        self.tools = tools
-        self.task_description = task_description
-        self.system_prompt = self._generate_system_prompt()
-        
-    def _generate_system_prompt(self) -> str:
-        """Generate system prompt based on profile and tools."""
-        base_prompts = {
-            "lightweight": "You are a fast, efficient agent for data acquisition tasks.",
-            "standard": "You are an analytical agent with strong reasoning capabilities.",
-            "collaborative": "You are a senior advisor with multi-perspective analysis capabilities."
-        }
-        
-        base = base_prompts.get(self.profile_name, base_prompts["standard"])
-        tools_text = ", ".join(self.tools)
-        
-        return f"{base} You have access to these tools: {tools_text}. Use them to complete: {self.task_description}"
-        
-    async def execute(self, context: str = "") -> str:
-        """Dummy execution with task-specific tools."""
-        # Simulate processing time based on profile complexity
-        delays = {"lightweight": 0.5, "standard": 1.0, "collaborative": 1.5}
-        delay = delays.get(self.profile_name, 1.0)
-        await asyncio.sleep(delay)
-        
-        # Generate task-specific output based on assigned tools
-        result_parts = []
-        result_parts.append(f"[{self.profile_name.upper()} AGENT: {self.node_id}]")
-        
-        if context:
-            result_parts.append(f"Used context from dependencies: {len(context)} characters")
-        
-        result_parts.append(f"Task: {self.task_description[:50]}...")
-        result_parts.append(f"Tools used: {', '.join(self.tools)}")
-        
-        # Generate tool-specific outputs (only for assigned tools)
-        for tool in self.tools:
-            if tool == "YFinanceTools":
-                result_parts.append("• Financial data retrieved: Revenue $28.5B, Net Income $3.2B, P/E ratio 24.1")
-            elif tool == "WebSearch":
-                result_parts.append("• Web search completed: 15 relevant articles found, 3 analyst reports")
-            elif tool == "DataProcessor":
-                result_parts.append("• Data processed: 1,247 records cleaned and normalized")
-            elif tool == "StatisticalAnalysis":
-                result_parts.append("• Statistical analysis: Mean growth 12.3%, std dev 2.1%, correlation 0.73")
-            elif tool == "NaturalLanguageProcessor":
-                result_parts.append("• Sentiment analysis: 68% positive, 22% neutral, 10% negative (confidence: 0.85)")
-            elif tool == "MachineLearning":
-                result_parts.append("• ML prediction: BUY recommendation (confidence: 0.82)")
-            elif tool == "ReportBuilder":
-                result_parts.append("• Investment report generated: 12 pages, 5 charts, 3 tables, executive summary")
-            elif tool == "APIConnector":
-                result_parts.append("• API call completed: 200 OK response")
-            elif tool == "FileReader":
-                result_parts.append("• Files processed: 2,341 lines read successfully")
-            elif tool == "DatabaseQuery":
-                result_parts.append("• Database query: 1,523 records returned")
-        
-        result_parts.append(f"Task completed successfully")
-        
-        return "\n".join(result_parts)
-
-
 class KernelAgent:
     """
-    Kernel that creates one specialized agent per DAG node.
+    Kernel that creates real Agno agents for each DAG node and orchestrates execution.
     """
     
     def __init__(self):
-        self.node_agents: Dict[str, DummyAgent] = {}
+        self.node_agents: Dict[str, Agent] = {}
+        self.profile_generator = ProfileGenerator()
+        self.tool_registry = self._create_tool_registry()
         
-    async def execute_workflow(self, dag) -> Dict[str, ExecutionResult]:
+    def _create_tool_registry(self) -> Dict[str, Any]:
+        """Create registry of available tool classes."""
+        return {
+            'YFinanceTools': YFinanceTools,
+            'WebSearchTools': WebSearchTools,
+            'DataProcessorTools': DataProcessorTools,
+            'ReportBuilderTools': ReportBuilderTools
+        }
+    
+    async def execute_workflow(self, dag: DAG) -> Dict[str, ExecutionResult]:
         """
         Main workflow execution:
-        1. Create one agent per DAG node
-        2. Execute DAG with specialized agents
+        1. Create real Agno agents for each DAG node
+        2. Execute DAG with dependency management
         """
         print(f"\n{'='*60}")
         print("KERNEL AGENT: Starting Workflow Execution")
         print(f"{'='*60}")
         
-        # Step 1: Create one agent per node
+        # Step 1: Create all agents
         await self._create_node_agents(dag)
         
         # Step 2: Execute DAG
@@ -121,12 +73,12 @@ class KernelAgent:
         
         return results
     
-    async def _create_node_agents(self, dag):
-        """Create one specialized agent per DAG node."""
-        print("\nKERNEL: Creating Specialized Agents")
+    async def _create_node_agents(self, dag: DAG):
+        """Create real Agno agents for each DAG node."""
+        print("\nKERNEL: Creating Real Agno Agents")
         print("-" * 40)
         
-        print(f"Creating {len(dag.nodes)} specialized agents (one per subtask)...")
+        print(f"Creating {len(dag.nodes)} Agno agents (one per subtask)...")
         
         # Create agents in parallel
         creation_tasks = []
@@ -139,33 +91,77 @@ class KernelAgent:
         await asyncio.gather(*creation_tasks)
         
         creation_time = time.time() - start_time
-        print(f"All {len(dag.nodes)} specialized agents created in {creation_time:.2f}s")
+        print(f"All {len(dag.nodes)} Agno agents created in {creation_time:.2f}s")
         
         # Show created agents
-        print("\nCreated Agents:")
+        print("\nCreated Agno Agents:")
         for node_id, agent in self.node_agents.items():
-            tools_str = ', '.join(agent.tools)
-            print(f"  • {node_id} ({agent.profile_name}): [{tools_str}]")
+            tools_str = ', '.join([tool.__class__.__name__ for tool in agent.tools]) if agent.tools else "No tools"
+            print(f"  • {node_id} ({getattr(agent, '_profile_type', 'unknown')}): [{tools_str}]")
     
-    async def _create_single_node_agent(self, node) -> DummyAgent:
-        """Create a specialized agent for a specific node."""
-        # Simulate agent creation time
-        await asyncio.sleep(0.2)
+    async def _create_single_node_agent(self, node: DAGNode) -> Agent:
+        """Create a real Agno agent for a specific node."""
+        # Simulate realistic agent creation time
+        await asyncio.sleep(0.1)
         
-        agent = DummyAgent(
-            node_id=node.id,
-            profile_name=node.agent_profile,
-            tools=node.tool_allowlist,
-            task_description=node.task_description
-        )
-        
-        self.node_agents[node.id] = agent
-        
-        print(f"  Created specialized agent: {node.id}")
-        return agent
+        try:
+            # Generate profile for this specific agent
+            profile = self.profile_generator.generate_profile(
+                profile_type=node.agent_profile,
+                task_description=node.task_description,
+                tools=node.tool_allowlist
+            )
+            
+            # Create tool instances for this agent
+            tools = []
+            for tool_name in node.tool_allowlist:
+                if tool_name in self.tool_registry:
+                    tool_class = self.tool_registry[tool_name]
+                    tool_instance = tool_class()
+                    tools.append(tool_instance)
+                else:
+                    logger.warning(f"Tool {tool_name} not found in registry")
+            
+            # Map profile types to model configurations
+            model_configs = {
+                "lightweight": {"temperature": 0.3, "max_tokens": 2000},
+                "standard": {"temperature": 0.1, "max_tokens": 4000},
+                "collaborative": {"temperature": 0.2, "max_tokens": 6000}
+            }
+            
+            config = model_configs.get(node.agent_profile, model_configs["standard"])
+            
+            # Create the real Agno agent
+            agent = Agent(
+                model=OpenAIChat(
+                    id="gpt-4o",
+                    temperature=config["temperature"],
+                    max_tokens=config["max_tokens"],
+                    top_p=0.9
+                ),
+                tools=tools,
+                description=profile,
+                markdown=False,
+                debug_mode=False,
+                add_datetime_to_instructions=True,
+                show_tool_calls=False
+            )
+            
+            # Store profile type for display purposes
+            agent._profile_type = node.agent_profile
+            agent._node_id = node.id
+            
+            self.node_agents[node.id] = agent
+            
+            print(f"  Created Agno agent: {node.id}")
+            return agent
+            
+        except Exception as e:
+            logger.error(f"Failed to create agent for {node.id}: {e}")
+            raise e
     
-    async def _execute_dag_with_display(self, dag) -> Dict[str, ExecutionResult]:
-        """Execute DAG with specialized agents."""
+    async def _execute_dag_with_display(self, dag: DAG) -> Dict[str, ExecutionResult]:
+        """Execute DAG with real Agno agents."""
         completed = {}
         round_num = 1
         
@@ -194,11 +190,15 @@ class KernelAgent:
                 tasks.append(task)
             
             # Wait for all tasks in this round
-            results = await asyncio.gather(*tasks)
+            results = await asyncio.gather(*tasks, return_exceptions=True)
             
             # Store results and show completion
             print(f"\nROUND {round_num} RESULTS:")
             for result in results:
+                if isinstance(result, Exception):
+                    print(f"  ✗ Task failed with exception: {result}")
+                    continue
+                    
                 completed[result.node_id] = result
                 status = "✓" if result.success else "✗"
                 print(f"  {status} {result.node_id}: {result.execution_time:.2f}s")
@@ -207,19 +207,35 @@ class KernelAgent:
         
         return completed
     
-    async def _execute_node_with_display(self, node, completed: Dict[str, ExecutionResult]) -> ExecutionResult:
-        """Execute a single node with its specialized agent."""
+    async def _execute_node_with_display(self, node: DAGNode, completed: Dict[str, ExecutionResult]) -> ExecutionResult:
+        """Execute a single node with its real Agno agent."""
         start_time = time.time()
         
         try:
             # Build context from dependencies
-            context = self._build_context_with_display(node, completed)
+            context = self._build_context_for_node(node, completed)
             
-            # Get specialized agent for this exact node
+            # Get the real Agno agent for this node
             agent = self.node_agents[node.id]
             
-            # Execute with specialized agent
-            result = await agent.execute(context=context)
+            # Create the prompt with context and task
+            prompt_parts = []
+            
+            if context:
+                prompt_parts.append("Context from previous tasks:")
+                prompt_parts.append(context)
+                prompt_parts.append("")
+            
+            prompt_parts.append(f"Task: {node.task_description}")
+            
+            full_prompt = "\n".join(prompt_parts)
+            
+            # Execute with the real Agno agent
+            logger.info(f"Executing agent {node.id} with {len(agent.tools)} tools")
+            response = await agent.arun(full_prompt)
+            
+            # Extract result content
+            result_content = response.content if hasattr(response, 'content') else str(response)
             
             execution_time = time.time() - start_time
             
@@ -235,18 +251,19 @@ class KernelAgent:
             else:
                 print("Input Context: None (root task)")
             
-            print(f"Agent: {agent.node_id} ({agent.profile_name})")
-            print(f"Tools: {', '.join(agent.tools)}")
+            print(f"Agent: {node.id} ({node.agent_profile})")
+            print(f"Tools: {', '.join(node.tool_allowlist)}")
             print("Output:")
-            # Indent the output for better readability
-            for line in result.split('\n'):
+            # Show first 300 characters of output
+            output_preview = result_content[:300] + "..." if len(result_content) > 300 else result_content
+            for line in output_preview.split('\n'):
                 print(f"  {line}")
             print(f"Execution time: {execution_time:.2f}s")
             print("-" * 50)
             
             return ExecutionResult(
                 node_id=node.id,
-                result=result,
+                result=result_content,
                 execution_time=execution_time,
                 agent_profile=node.agent_profile,
                 tools_used=node.tool_allowlist,
@@ -255,6 +272,7 @@ class KernelAgent:
             
         except Exception as e:
             execution_time = time.time() - start_time
+            logger.error(f"Task {node.id} failed: {str(e)}")
             print(f"ERROR in {node.id}: {str(e)}")
             
             return ExecutionResult(
@@ -267,7 +285,7 @@ class KernelAgent:
                 error=str(e)
             )
     
-    def _build_context_with_display(self, node, completed: Dict[str, ExecutionResult]) -> str:
+    def _build_context_for_node(self, node: DAGNode, completed: Dict[str, ExecutionResult]) -> str:
         """Build context from dependency outputs."""
         if not node.dependencies:
             return ""
@@ -277,10 +295,14 @@ class KernelAgent:
             if dep_id in completed:
                 dep_result = completed[dep_id]
                 if dep_result.success:
-                    # Include full result as context
-                    context_parts.append(f"=== Results from {dep_id} ===\n{dep_result.result}")
+                    # Truncate very long results for context
+                    result_snippet = dep_result.result[:1000]
+                    if len(dep_result.result) > 1000:
+                        result_snippet += "... (truncated)"
+                    
+                    context_parts.append(f"Results from {dep_id}:\n{result_snippet}")
                 else:
-                    context_parts.append(f"=== {dep_id} FAILED ===\nError: {dep_result.error}")
+                    context_parts.append(f"Task {dep_id} failed: {dep_result.error}")
         
         return "\n\n".join(context_parts)
 
@@ -291,6 +313,6 @@ class WorkflowExecutor:
     def __init__(self):
         self.kernel = KernelAgent()
     
-    async def execute(self, dag) -> Dict[str, ExecutionResult]:
+    async def execute(self, dag: DAG) -> Dict[str, ExecutionResult]:
         """Execute complete workflow from DAG."""
         return await self.kernel.execute_workflow(dag)

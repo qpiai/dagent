@@ -84,21 +84,13 @@ Your final output MUST be a JSON object that strictly follows the provided schem
 AVAILABLE_TOOLS = [
     # Data Acquisition Tools
     {"id": "YFinanceTools", "description": "Fetch stock prices, financial data, market trends, and company fundamentals."},
-    {"id": "WebSearch", "description": "Search the web for articles, news, and general information."},
-    {"id": "APIConnector", "description": "Make HTTP requests to REST APIs and handle responses."},
-    {"id": "FileReader", "description": "Read and parse various file formats (CSV, JSON, XML, PDF, etc.)."},
-    {"id": "DatabaseQuery", "description": "Execute SQL queries against structured databases."},
+    {"id": "WebSearchTools", "description": "Search the web for articles, news, and general information using Exa API or DuckDuckGo."},
     
     # Processing & Analysis Tools
-    {"id": "DataProcessor", "description": "Clean, transform, filter, and manipulate datasets."},
-    {"id": "StatisticalAnalysis", "description": "Perform statistical calculations, correlations, and hypothesis testing."},
-    {"id": "NaturalLanguageProcessor", "description": "Analyze text sentiment, extract entities, and process language."},
-    
-    # AI & ML Tools
-    {"id": "MachineLearning", "description": "Train models, make predictions, and perform ML analysis."},
+    {"id": "DataProcessorTools", "description": "Clean, transform, filter, manipulate datasets, and extract financial metrics."},
     
     # Output & Reporting Tools
-    {"id": "ReportBuilder", "description": "Generate formatted reports with text, tables, and visualizations."},
+    {"id": "ReportBuilderTools", "description": "Generate formatted reports with text, tables, and investment recommendations."},
 ]
 
 # Complex test scenarios that require multiple tools
