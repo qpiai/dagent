@@ -1,0 +1,16 @@
+# Core Agno framework
+agno>=1.1.0
+
+# Financial data tools
+yfinance>=0.2.20
+
+# Web search tools  
+duckduckgo-search>=6.0.0
+requests>=2.31.0
+
+# Data processing tools
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Additional utilities
+python-dateutil>=2.8.0

@@ -6,7 +6,7 @@ import json
 import os
 import asyncio
 from dotenv import load_dotenv
-from prompts import PLANNER_SYSTEM_PROMPT, AVAILABLE_AGENT_PROFILES, EXAMPLE_JSON, AVAILABLE_TOOLS
+from .prompts import PLANNER_SYSTEM_PROMPT, AVAILABLE_AGENT_PROFILES, EXAMPLE_JSON, AVAILABLE_TOOLS
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 

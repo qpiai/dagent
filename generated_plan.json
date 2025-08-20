@@ -1,0 +1,55 @@
+{
+  "query": "Analyze Tesla's Q4 2024 performance and provide an investment recommendation.",
+  "planning_rationale": "The plan is structured to first gather and analyze Tesla's Q4 2024 financial data and market performance using specialized tools. The tasks are designed to maximize parallelism by separating data acquisition from analysis and recommendation generation. The 'YFinanceTools' is used for financial data acquisition, while 'WebSearch' gathers qualitative insights. 'DataProcessor' and 'StatisticalAnalysis' are used for quantitative analysis. Finally, 'ReportBuilder' compiles the findings into an investment recommendation. The 'standard' profile is used for complex analysis tasks, while 'lightweight' is used for straightforward data gathering.",
+  "expected_final_output": "An investment recommendation report for Tesla based on Q4 2024 performance analysis.",
+  "subtasks": {
+    "fetch_financial_data": {
+      "task_description": "Fetch Tesla's Q4 2024 financial data and stock performance using YFinance.",
+      "agent_profile": "lightweight",
+      "tool_allowlist": [
+        "YFinanceTools"
+      ],
+      "dependencies": []
+    },
+    "gather_market_insights": {
+      "task_description": "Search for recent news articles and market insights about Tesla's Q4 2024 performance.",
+      "agent_profile": "lightweight",
+      "tool_allowlist": [
+        "WebSearch"
+      ],
+      "dependencies": []
+    },
+    "analyze_financial_performance": {
+      "task_description": "Analyze the financial data to assess Tesla's Q4 2024 performance using statistical methods.",
+      "agent_profile": "standard",
+      "tool_allowlist": [
+        "DataProcessor",
+        "StatisticalAnalysis"
+      ],
+      "dependencies": [
+        "fetch_financial_data"
+      ]
+    },
+    "synthesize_market_analysis": {
+      "task_description": "Process and synthesize market insights to understand qualitative aspects of Tesla's performance.",
+      "agent_profile": "standard",
+      "tool_allowlist": [
+        "NaturalLanguageProcessor"
+      ],
+      "dependencies": [
+        "gather_market_insights"
+      ]
+    },
+    "generate_investment_recommendation": {
+      "task_description": "Combine financial analysis and market insights to generate an investment recommendation for Tesla.",
+      "agent_profile": "collaborative",
+      "tool_allowlist": [
+        "ReportBuilder"
+      ],
+      "dependencies": [
+        "analyze_financial_performance",
+        "synthesize_market_analysis"
+      ]
+    }
+  }
+}

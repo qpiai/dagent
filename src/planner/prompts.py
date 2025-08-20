@@ -85,48 +85,20 @@ AVAILABLE_TOOLS = [
     # Data Acquisition Tools
     {"id": "YFinanceTools", "description": "Fetch stock prices, financial data, market trends, and company fundamentals."},
     {"id": "WebSearch", "description": "Search the web for articles, news, and general information."},
-    {"id": "DatabaseQuery", "description": "Execute SQL queries against structured databases."},
     {"id": "APIConnector", "description": "Make HTTP requests to REST APIs and handle responses."},
     {"id": "FileReader", "description": "Read and parse various file formats (CSV, JSON, XML, PDF, etc.)."},
-    {"id": "WebScraper", "description": "Extract structured data from HTML websites and web pages."},
+    {"id": "DatabaseQuery", "description": "Execute SQL queries against structured databases."},
     
     # Processing & Analysis Tools
     {"id": "DataProcessor", "description": "Clean, transform, filter, and manipulate datasets."},
     {"id": "StatisticalAnalysis", "description": "Perform statistical calculations, correlations, and hypothesis testing."},
-    {"id": "MachineLearning", "description": "Train models, make predictions, and perform ML analysis."},
     {"id": "NaturalLanguageProcessor", "description": "Analyze text sentiment, extract entities, and process language."},
-    {"id": "MathCalculator", "description": "Perform complex mathematical calculations and equation solving."},
-    {"id": "DateTimeProcessor", "description": "Parse, format, and perform calculations with dates and times."},
     
-    # Communication Tools
-    {"id": "EmailSender", "description": "Send emails with attachments and formatted content."},
-    {"id": "SlackNotifier", "description": "Send messages and notifications to Slack channels."},
-    {"id": "SMSSender", "description": "Send SMS text messages to phone numbers."},
-    {"id": "WebhookDispatcher", "description": "Send HTTP webhooks to external systems."},
+    # AI & ML Tools
+    {"id": "MachineLearning", "description": "Train models, make predictions, and perform ML analysis."},
     
-    # Storage & File Tools
-    {"id": "FileEditor", "description": "Create, edit, and manage files in the workspace."},
-    {"id": "CloudStorage", "description": "Upload, download, and manage files in cloud storage systems."},
-    {"id": "DatabaseWriter", "description": "Insert, update, and delete records in databases."},
-    {"id": "CacheManager", "description": "Store and retrieve temporary data for performance optimization."},
-    
-    # Visualization Tools
-    {"id": "ChartGenerator", "description": "Create various types of charts and graphs from data."},
+    # Output & Reporting Tools
     {"id": "ReportBuilder", "description": "Generate formatted reports with text, tables, and visualizations."},
-    {"id": "DashboardCreator", "description": "Build interactive dashboards and data visualizations."},
-    {"id": "ImageProcessor", "description": "Edit, resize, and manipulate images and graphics."},
-    
-    # Validation & Testing Tools
-    {"id": "DataValidator", "description": "Check data quality, completeness, and consistency."},
-    {"id": "TestRunner", "description": "Execute automated tests and validation checks."},
-    {"id": "ComplianceChecker", "description": "Verify adherence to regulations and business rules."},
-    {"id": "PerformanceMonitor", "description": "Monitor system performance and resource usage."},
-    
-    # Specialized Tools
-    {"id": "CryptographyTools", "description": "Encrypt, decrypt, and handle cryptographic operations."},
-    {"id": "GeoLocationProcessor", "description": "Process geographic data and location-based calculations."},
-    {"id": "TimeSeries", "description": "Analyze time-series data and perform forecasting."},
-    {"id": "NetworkAnalyzer", "description": "Analyze network connections and perform network diagnostics."}
 ]
 
 # Complex test scenarios that require multiple tools
