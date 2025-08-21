@@ -1,5 +1,6 @@
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAILike
 from pydantic import BaseModel
 from typing import List, Dict, Optional
 import json
@@ -11,6 +12,8 @@ from .prompts import PLANNER_SYSTEM_PROMPT, AVAILABLE_AGENT_PROFILES, EXAMPLE_JS
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+model_id = os.getenv("MODEL_ID")
+base_url = os.getenv("BASE_URL")
 
 
 class SubtaskNode(BaseModel):
@@ -35,21 +38,21 @@ class Planner:
     @property
     def agent(self):
         if self._agent is None:
-            # Create agent WITHOUT response_model to avoid structured output issues
             self._agent = Agent(
-                model=OpenAIChat(
-                    id="gpt-4o",
+                model=OpenAILike(
+                    id=model_id,
+                    base_url=base_url,
                     temperature=0.1,
                     max_tokens=10000,
                     top_p=0.9
                 ),
                 description=PLANNER_SYSTEM_PROMPT,
-                # response_model=Plan,  # <-- Remove this line to disable structured output
                 markdown=False,
                 debug_mode=False,
                 add_datetime_to_instructions=True,
                 exponential_backoff=True,
                 delay_between_retries=2,
+                use_json_mode=True,
             )
         return self._agent
 
@@ -64,23 +67,24 @@ class Planner:
     ) -> Plan:
         """Creates a plan and returns a validated Pydantic Plan object"""
 
-        profiles_text = "\n".join(
-            [f"- **profile**: '{p['profile']}', **description**: \"{p['description']}\"" for p in available_profiles]
-        )
-        tools_text = "\n".join(
-            [f"- **id**: '{t['id']}', **description**: \"{t['description']}\"" for t in available_tools]
-        )
+        profiles_text = "\n".join([
+            f"- **profile**: '{p['profile']}', **description**: \"{p['description']}\""
+            for p in available_profiles
+        ])
+        tools_text = "\n".join([
+            f"- **id**: '{t['id']}', **description**: \"{t['description']}\""
+            for t in available_tools
+        ])
 
+        feedback_block = ""
         if feedback:
             feedback_block = f"""
             - **Output Score (Overall Strategy)**: {feedback.get('output_score', 'N/A')}
             - **Traces Score (Subtask Efficiency)**: {feedback.get('traces_score', 'N/A')}
             - **Evaluator Feedback**: {feedback.get('evaluator_feedback', 'N/A')}
             """
-        else:
-            feedback_block = ""
 
-        # Include previous plan if available
+        previous_plan_block = ""
         if previous_plan:
             previous_plan_block = f"""
 **Previous Plan to Improve:**
@@ -90,11 +94,6 @@ class Planner:
 
 Based on the feedback above, you should modify and improve this existing plan rather than creating a completely new one. Focus on addressing the specific issues mentioned in the evaluator feedback while preserving the good aspects of the original plan.
             """
-        else:
-            previous_plan_block = ""
-
-        # Include the expected JSON structure in the prompt
-        
          
         prompt = f"""
 ---
@@ -132,45 +131,49 @@ IMPORTANT RULES:
 ---
 
 Please generate the optimized JSON plan based on this briefing and your core instructions.
-"""     
+"""
 
         print("Calling planner Agent")
         response = await self.agent.arun(prompt)
         print("Planner Agent response received successfully.")
-        
-        # Parse the response and validate with Pydantic
+
         try:
-            # Get the response content
-            if hasattr(response, 'content'):
-                json_text = response.content
-            else:
-                json_text = str(response)
-                
-            # Clean up any potential markdown formatting
-            json_text = json_text.strip()
-            if json_text.startswith('```json'):
-                json_text = json_text.split('```json')[1].split('```')[0]
-            elif json_text.startswith('```'):
-                json_text = json_text.split('```')[1].split('```')[0]
+            raw_text = response.content
+            json_text = raw_text.strip()
+            
+            if '```json' in json_text:
+                start = json_text.find('```json') + 7
+                end = json_text.find('```', start)
+                if end != -1:
+                    json_text = json_text[start:end]
+            elif '```' in json_text:
+                parts = json_text.split('```')
+                if len(parts) >= 3:
+                    json_text = parts[1]
             
             json_text = json_text.strip()
             
-            # Parse JSON and create validated Pydantic object
+            if not (json_text.startswith('{') and json_text.endswith('}')):
+                start_idx = json_text.find('{')
+                end_idx = json_text.rfind('}')
+                if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                    json_text = json_text[start_idx:end_idx + 1]
+            
             plan_dict = json.loads(json_text)
             validated_plan = Plan(**plan_dict)
+            print(f"Plan type: {type(validated_plan)}")
             
             return validated_plan
             
         except json.JSONDecodeError as e:
             print(f"JSON parsing error: {e}")
-            print(f"Raw response: {json_text}")
-            raise Exception(f"Failed to parse JSON response: {e}")
+            print(f"Extracted text: {json_text}")
+            print(f"Raw response: {raw_text}")
+            raise
         except Exception as e:
-            print(f"Pydantic validation error: {e}")
-            print(f"Parsed JSON: {plan_dict}")
-            raise Exception(f"Failed to validate plan structure: {e}")
+            print(f"Error creating plan: {e}")
+            raise
 
-    
 
 async def main():
     planner = Planner()
@@ -186,10 +189,8 @@ async def main():
 
     print("\n✅ Generated Plan:")
     print(plan_1.model_dump_json(indent=2))
-    
 
     print("\n=== Scenario 2: Plan with Feedback ===")
-
     mock_feedback = {
         "output_score": 0.8,
         "traces_score": 0.7,
@@ -201,7 +202,7 @@ async def main():
         available_profiles=AVAILABLE_AGENT_PROFILES,
         available_tools=AVAILABLE_TOOLS,
         feedback=mock_feedback,
-        previous_plan=plan_1,  # Pass the previous plan for iteration
+        previous_plan=plan_1,
         iteration=2
     )
 
