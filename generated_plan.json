@@ -1,54 +1,53 @@
 {
   "query": "Analyze Tesla's Q4 2024 performance and provide an investment recommendation.",
-  "planning_rationale": "The plan is structured to first gather and analyze Tesla's Q4 2024 financial data and market performance using specialized tools. The tasks are designed to maximize parallelism by separating data acquisition from analysis and recommendation generation. The 'YFinanceTools' is used for financial data acquisition, while 'WebSearch' gathers qualitative insights. 'DataProcessor' and 'StatisticalAnalysis' are used for quantitative analysis. Finally, 'ReportBuilder' compiles the findings into an investment recommendation. The 'standard' profile is used for complex analysis tasks, while 'lightweight' is used for straightforward data gathering.",
-  "expected_final_output": "An investment recommendation report for Tesla based on Q4 2024 performance analysis.",
+  "planning_rationale": "The plan is structured to maximize parallelism while ensuring a logical flow of data from acquisition to analysis and finally to recommendation. The critical path is minimized by parallelizing data acquisition tasks, which are essential for downstream analysis. Resource allocation is optimized by using lightweight profiles for data acquisition and processing, and escalating to standard profiles only where more complex reasoning is required. The final recommendation task uses a collaborative profile to ensure thorough analysis and multi-perspective insights.",
+  "expected_final_output": "A detailed investment recommendation report based on Tesla's Q4 2024 performance analysis.",
   "subtasks": {
     "fetch_financial_data": {
-      "task_description": "Fetch Tesla's Q4 2024 financial data and stock performance using YFinance.",
+      "task_description": "Fetch Tesla's Q4 2024 financial data including stock prices, revenue, and other key metrics.",
       "agent_profile": "lightweight",
       "tool_allowlist": [
         "YFinanceTools"
       ],
       "dependencies": []
     },
-    "gather_market_insights": {
-      "task_description": "Search for recent news articles and market insights about Tesla's Q4 2024 performance.",
+    "gather_news_articles": {
+      "task_description": "Search for recent news and articles related to Tesla's Q4 2024 performance.",
       "agent_profile": "lightweight",
       "tool_allowlist": [
-        "WebSearch"
+        "WebSearchTools"
       ],
       "dependencies": []
     },
-    "analyze_financial_performance": {
-      "task_description": "Analyze the financial data to assess Tesla's Q4 2024 performance using statistical methods.",
+    "process_financial_data": {
+      "task_description": "Clean and process the financial data to extract key performance metrics.",
       "agent_profile": "standard",
       "tool_allowlist": [
-        "DataProcessor",
-        "StatisticalAnalysis"
+        "DataProcessorTools"
       ],
       "dependencies": [
         "fetch_financial_data"
       ]
     },
-    "synthesize_market_analysis": {
-      "task_description": "Process and synthesize market insights to understand qualitative aspects of Tesla's performance.",
+    "analyze_investment_potential": {
+      "task_description": "Analyze the processed financial data and news articles to assess investment potential.",
       "agent_profile": "standard",
       "tool_allowlist": [
-        "NaturalLanguageProcessor"
+        "DataProcessorTools"
       ],
       "dependencies": [
-        "gather_market_insights"
+        "process_financial_data",
+        "gather_news_articles"
       ]
     },
     "generate_investment_recommendation": {
-      "task_description": "Combine financial analysis and market insights to generate an investment recommendation for Tesla.",
+      "task_description": "Generate a comprehensive investment recommendation report based on the analysis.",
       "agent_profile": "collaborative",
       "tool_allowlist": [
-        "ReportBuilder"
+        "ReportBuilderTools"
       ],
       "dependencies": [
-        "analyze_financial_performance",
-        "synthesize_market_analysis"
+        "analyze_investment_potential"
       ]
     }
   }

@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from planner import Planner
 from dag import build_dag_from_plan
 from kernel import WorkflowExecutor
+from planner.prompts import AVAILABLE_AGENT_PROFILES, AVAILABLE_TOOLS
 
 
 async def main():
@@ -18,7 +19,7 @@ async def main():
     planner = Planner()
     query = "Analyze Tesla's Q4 2024 performance and provide an investment recommendation."
     
-    from planner.prompts import AVAILABLE_AGENT_PROFILES, AVAILABLE_TOOLS
+
     plan = await planner.create_plan(query, AVAILABLE_AGENT_PROFILES, AVAILABLE_TOOLS)
     print(f"Plan created: {len(plan.subtasks)} subtasks")
     
