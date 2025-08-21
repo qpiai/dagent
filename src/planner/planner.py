@@ -52,7 +52,6 @@ class Planner:
                 add_datetime_to_instructions=True,
                 exponential_backoff=True,
                 delay_between_retries=2,
-                use_json_mode=True,
             )
         return self._agent
 
