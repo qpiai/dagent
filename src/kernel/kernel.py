@@ -10,7 +10,7 @@ from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 
 from dag import DAG, DAGNode
-from tools import YFinanceTools, WebSearchTools, DataProcessorTools, ReportBuilderTools
+from tools import YFinanceTools, WebSearchTools
 from .profiles import ProfileGenerator
 
 logger = logging.getLogger(__name__)
@@ -42,9 +42,7 @@ class KernelAgent:
         """Create registry of available tool classes."""
         return {
             'YFinanceTools': YFinanceTools,
-            'WebSearchTools': WebSearchTools,
-            'DataProcessorTools': DataProcessorTools,
-            'ReportBuilderTools': ReportBuilderTools
+            'WebSearchTools': WebSearchTools
         }
     
     async def execute_workflow(self, dag: DAG) -> Dict[str, ExecutionResult]:
@@ -107,7 +105,7 @@ class KernelAgent:
         try:
             # Generate profile for this specific agent
             profile = self.profile_generator.generate_profile(
-                profile_type=node.agent_profile,
+                agent_profile=node.agent_profile,
                 task_description=node.task_description,
                 tools=node.tool_allowlist
             )
@@ -122,14 +120,14 @@ class KernelAgent:
                 else:
                     logger.warning(f"Tool {tool_name} not found in registry")
             
-            # Map profile types to model configurations
+            # Map complexity levels to model configurations
             model_configs = {
-                "lightweight": {"temperature": 0.3, "max_tokens": 2000},
-                "standard": {"temperature": 0.1, "max_tokens": 4000},
-                "collaborative": {"temperature": 0.2, "max_tokens": 6000}
+                "QUICK": {"temperature": 0.3, "max_tokens": 2000},
+                "THOROUGH": {"temperature": 0.1, "max_tokens": 4000},
+                "DEEP": {"temperature": 0.2, "max_tokens": 6000}
             }
-            
-            config = model_configs.get(node.agent_profile, model_configs["standard"])
+
+            config = model_configs.get(node.agent_profile.complexity, model_configs["THOROUGH"])
             
             # Create the real Agno agent
             agent = Agent(
@@ -148,7 +146,8 @@ class KernelAgent:
             )
             
             # Store profile type for display purposes
-            agent._profile_type = node.agent_profile
+            profile_display = f"{node.agent_profile.task_type}:{node.agent_profile.complexity}"
+            agent._profile_type = profile_display
             agent._node_id = node.id
             
             self.node_agents[node.id] = agent
@@ -179,7 +178,8 @@ class KernelAgent:
             for node in ready_nodes:
                 deps = node.dependencies if node.dependencies else ["START"]
                 tools_str = ', '.join(node.tool_allowlist)
-                print(f"  Starting: {node.id} ({node.agent_profile}) [Tools: {tools_str}]")
+                profile_str = f"{node.agent_profile.task_type}:{node.agent_profile.complexity}"
+                print(f"  Starting: {node.id} ({profile_str}) [Tools: {tools_str}]")
                 if node.dependencies:
                     print(f"    Dependencies: {', '.join(deps)}")
             
@@ -251,11 +251,12 @@ class KernelAgent:
             else:
                 print("Input Context: None (root task)")
             
-            print(f"Agent: {node.id} ({node.agent_profile})")
+            profile_str = f"{node.agent_profile.task_type}:{node.agent_profile.complexity}"
+            print(f"Agent: {node.id} ({profile_str})")
             print(f"Tools: {', '.join(node.tool_allowlist)}")
             print("Output:")
-            # Show first 300 characters of output
-            output_preview = result_content[:300] + "..." if len(result_content) > 300 else result_content
+            # Show full output
+            output_preview = result_content
             for line in output_preview.split('\n'):
                 print(f"  {line}")
             print(f"Execution time: {execution_time:.2f}s")
@@ -265,7 +266,7 @@ class KernelAgent:
                 node_id=node.id,
                 result=result_content,
                 execution_time=execution_time,
-                agent_profile=node.agent_profile,
+                agent_profile=profile_str,
                 tools_used=node.tool_allowlist,
                 success=True
             )
@@ -275,11 +276,12 @@ class KernelAgent:
             logger.error(f"Task {node.id} failed: {str(e)}")
             print(f"ERROR in {node.id}: {str(e)}")
             
+            profile_str = f"{node.agent_profile.task_type}:{node.agent_profile.complexity}"
             return ExecutionResult(
                 node_id=node.id,
                 result="",
                 execution_time=execution_time,
-                agent_profile=node.agent_profile,
+                agent_profile=profile_str,
                 tools_used=node.tool_allowlist,
                 success=False,
                 error=str(e)
@@ -295,12 +297,8 @@ class KernelAgent:
             if dep_id in completed:
                 dep_result = completed[dep_id]
                 if dep_result.success:
-                    # Truncate very long results for context
-                    result_snippet = dep_result.result[:1000]
-                    if len(dep_result.result) > 1000:
-                        result_snippet += "... (truncated)"
-                    
-                    context_parts.append(f"Results from {dep_id}:\n{result_snippet}")
+                    # Pass full results as context
+                    context_parts.append(f"Results from {dep_id}:\n{dep_result.result}")
                 else:
                     context_parts.append(f"Task {dep_id} failed: {dep_result.error}")
         

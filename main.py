@@ -17,7 +17,7 @@ async def main():
     # Step 1: Create plan
     print("Creating plan...")
     planner = Planner()
-    query = "Analyze Tesla's Q4 2024 performance and provide an investment recommendation."
+    query = "What is the current age of the last american(by nationality) experimental physicist to win the nobel peace prize?"
     
 
     plan = await planner.create_plan(query, AVAILABLE_AGENT_PROFILES, AVAILABLE_TOOLS)
@@ -49,7 +49,12 @@ async def main():
         "subtasks": {
             task_id: {
                 "task_description": subtask.task_description,
-                "agent_profile": subtask.agent_profile,
+                "agent_profile": {
+                    "task_type":subtask.agent_profile.task_type,
+                    "complexity":subtask.agent_profile.complexity,
+                    "output_format":subtask.agent_profile.output_format,
+                    "reasoning_style":subtask.agent_profile.reasoning_style
+                    },
                 "tool_allowlist": subtask.tool_allowlist,
                 "dependencies": subtask.dependencies
             }

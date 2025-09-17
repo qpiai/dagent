@@ -1,53 +1,47 @@
 {
-  "query": "Analyze Tesla's Q4 2024 performance and provide an investment recommendation.",
-  "planning_rationale": "The plan is structured to maximize parallelism while ensuring a logical flow of data from acquisition to analysis and finally to recommendation. The critical path is minimized by parallelizing data acquisition tasks, which are essential for downstream analysis. Resource allocation is optimized by using lightweight profiles for data acquisition and processing, and escalating to standard profiles only where more complex reasoning is required. The final recommendation task uses a collaborative profile to ensure thorough analysis and multi-perspective insights.",
-  "expected_final_output": "A detailed investment recommendation report based on Tesla's Q4 2024 performance analysis.",
+  "query": "What is the current age of the last american(by nationality) experimental physicist to win the nobel peace prize?",
+  "planning_rationale": "The query requires identifying the last American experimental physicist to win the Nobel Peace Prize, determining their age. Given the Nobel Peace Prize criteria, we'll focus on recent Nobel Prize in Physics announcements, cross-referencing winners in the experimental physics category. Establish the nationality and compute the age using birth date data. Utilize WebSearchTools for Nobel prize data and biographical information collection and minimal final processing for age calculation.",
+  "expected_final_output": "The current age of the most recent American experimental physicist to win the Nobel Peace Prize.",
   "subtasks": {
-    "fetch_financial_data": {
-      "task_description": "Fetch Tesla's Q4 2024 financial data including stock prices, revenue, and other key metrics.",
-      "agent_profile": "lightweight",
-      "tool_allowlist": [
-        "YFinanceTools"
-      ],
-      "dependencies": []
-    },
-    "gather_news_articles": {
-      "task_description": "Search for recent news and articles related to Tesla's Q4 2024 performance.",
-      "agent_profile": "lightweight",
+    "search_recent_nobel_prizes_in_physics": {
+      "task_description": "Search for Nobel Prizes in Physics winners from recent years, focusing on possible experimental physicists.",
+      "agent_profile": {
+        "task_type": "SEARCH",
+        "complexity": "QUICK",
+        "output_format": "DATA",
+        "reasoning_style": "DIRECT"
+      },
       "tool_allowlist": [
         "WebSearchTools"
       ],
       "dependencies": []
     },
-    "process_financial_data": {
-      "task_description": "Clean and process the financial data to extract key performance metrics.",
-      "agent_profile": "standard",
+    "identify_american_experimental_winner": {
+      "task_description": "Identify the most recent American experimental physicist from the Nobel Prize winners and retrieve their birth date.",
+      "agent_profile": {
+        "task_type": "THINK",
+        "complexity": "THOROUGH",
+        "output_format": "ANALYSIS",
+        "reasoning_style": "ANALYTICAL"
+      },
       "tool_allowlist": [
-        "DataProcessorTools"
+        "WebSearchTools"
       ],
       "dependencies": [
-        "fetch_financial_data"
+        "search_recent_nobel_prizes_in_physics"
       ]
     },
-    "analyze_investment_potential": {
-      "task_description": "Analyze the processed financial data and news articles to assess investment potential.",
-      "agent_profile": "standard",
-      "tool_allowlist": [
-        "DataProcessorTools"
-      ],
+    "calculate_age": {
+      "task_description": "Calculate the current age of the identified American experimental physicist using their birth date.",
+      "agent_profile": {
+        "task_type": "THINK",
+        "complexity": "QUICK",
+        "output_format": "REPORT",
+        "reasoning_style": "DIRECT"
+      },
+      "tool_allowlist": [],
       "dependencies": [
-        "process_financial_data",
-        "gather_news_articles"
-      ]
-    },
-    "generate_investment_recommendation": {
-      "task_description": "Generate a comprehensive investment recommendation report based on the analysis.",
-      "agent_profile": "collaborative",
-      "tool_allowlist": [
-        "ReportBuilderTools"
-      ],
-      "dependencies": [
-        "analyze_investment_potential"
+        "identify_american_experimental_winner"
       ]
     }
   }

@@ -2,7 +2,7 @@ from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.models.openai import OpenAILike
 from pydantic import BaseModel
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Literal
 import json
 import os
 import asyncio
@@ -16,10 +16,18 @@ model_id = os.getenv("MODEL_ID")
 base_url = os.getenv("BASE_URL")
 
 
+class AgentProfile(BaseModel):
+    """Agent profile configuration with semantic fields."""
+    task_type: Literal["SEARCH", "THINK", "AGGREGATE"]
+    complexity: Literal["QUICK", "THOROUGH", "DEEP"]
+    output_format: Literal["DATA", "ANALYSIS", "REPORT"]
+    reasoning_style: Literal["DIRECT", "ANALYTICAL", "CREATIVE"]
+
+
 class SubtaskNode(BaseModel):
     """Defines a single node in the execution DAG."""
     task_description: str
-    agent_profile: str
+    agent_profile: AgentProfile
     tool_allowlist: List[str]
     dependencies: List[str] = []
 
@@ -39,13 +47,8 @@ class Planner:
     def agent(self):
         if self._agent is None:
             self._agent = Agent(
-                model=OpenAILike(
-                    id=model_id,
-                    base_url=base_url,
-                    temperature=0.1,
-                    max_tokens=10000,
-                    top_p=0.9
-                ),
+                model=OpenAIChat(
+                    id="gpt-4o"),
                 description=PLANNER_SYSTEM_PROMPT,
                 markdown=False,
                 debug_mode=False,
@@ -67,7 +70,7 @@ class Planner:
         """Creates a plan and returns a validated Pydantic Plan object"""
 
         profiles_text = "\n".join([
-            f"- **profile**: '{p['profile']}', **description**: \"{p['description']}\""
+            f"- **{list(p.keys())[0]}**: '{list(p.values())[0]}', **description**: \"{p['description']}\""
             for p in available_profiles
         ])
         tools_text = "\n".join([
@@ -114,18 +117,46 @@ Based on the feedback above, you should modify and improve this existing plan ra
 {previous_plan_block}
 
 **4. REQUIRED OUTPUT FORMAT**
-You MUST respond with ONLY a valid JSON object that follows this exact structure:
+You MUST respond with ONLY a valid JSON object following this schema structure:
 
 ```json
-{json.dumps(EXAMPLE_JSON, indent=2)}
+{{
+  "planning_rationale": "Your strategic reasoning and approach explanation",
+  "subtasks": {{
+    "task_id_1": {{
+      "task_description": "Specific atomic task description",
+      "agent_profile": {{
+        "task_type": "SEARCH|THINK|AGGREGATE",
+        "complexity": "QUICK|THOROUGH|DEEP",
+        "output_format": "DATA|ANALYSIS|REPORT",
+        "reasoning_style": "DIRECT|ANALYTICAL|CREATIVE"
+      }},
+      "tool_allowlist": ["ToolName"],
+      "dependencies": []
+    }},
+    "task_id_2": {{
+      "task_description": "Another specific atomic task description",
+      "agent_profile": {{
+        "task_type": "SEARCH|THINK|AGGREGATE",
+        "complexity": "QUICK|THOROUGH|DEEP",
+        "output_format": "DATA|ANALYSIS|REPORT",
+        "reasoning_style": "DIRECT|ANALYTICAL|CREATIVE"
+      }},
+      "tool_allowlist": ["ToolName"],
+      "dependencies": ["task_id_1"]
+    }}
+  }},
+  "expected_final_output": "Description of expected final result"
+}}
 ```
 
 IMPORTANT RULES:
 - Return ONLY the JSON object, no additional text
+- Create the appropriate NUMBER of subtasks based on query complexity (not fixed to any template)
 - All subtask IDs should be descriptive snake_case names
 - Dependencies should reference actual subtask IDs from your plan
 - Use only the agent profiles and tools listed above
-- The planning_rationale should explain your strategy
+- Apply the query categorization and adaptive strategies from your instructions
 
 ---
 

@@ -417,8 +417,6 @@ class ReportBuilderTools(BaseAgnoTool):
     # Helper methods
     def _format_section_content(self, content: str) -> str:
         """Format content for better readability."""
-        if len(content) > 500:
-            return content[:500] + "..."
         return content
     
     def _extract_bullet_points(self, content: str) -> str:

@@ -96,7 +96,7 @@ Company Information for {symbol.upper()}:
 • Industry: {industry}
 • Full-time Employees: {self._format_number(employees)}
 • Website: {website}
-• Business Summary: {summary[:300]}...
+• Business Summary: {summary}
             """.strip()
             
             return result
@@ -170,7 +170,11 @@ Recent Recommendations:
             """
             
             for date, row in recent_recommendations.iterrows():
-                result += f"• {date.strftime('%Y-%m-%d')}: {row.get('To Grade', 'N/A')} by {row.get('Firm', 'N/A')}\n"
+                try:
+                    date_str = date.strftime('%Y-%m-%d') if hasattr(date, 'strftime') else str(date)
+                except (AttributeError, TypeError):
+                    date_str = str(date)
+                result += f"• {date_str}: {row.get('To Grade', 'N/A')} by {row.get('Firm', 'N/A')}\n"
             
             # Get price targets if available
             info = ticker.info

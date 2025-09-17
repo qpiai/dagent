@@ -2,85 +2,112 @@
 
 from typing import List
 import logging
+from planner.planner import AgentProfile
 
 logger = logging.getLogger(__name__)
 
 
 class ProfileGenerator:
     """Generates detailed agent profiles based on tasks and tools."""
-    
+
     def __init__(self):
         pass
-    
-    def generate_profile(self, profile_type: str, task_description: str, tools: List[str]) -> str:
+
+    def generate_profile(self, agent_profile: AgentProfile, task_description: str, tools: List[str]) -> str:
         """Generate a detailed agent profile.
-        
+
         Args:
-            profile_type (str): Type of profile (lightweight/standard/collaborative)
+            agent_profile (AgentProfile): Structured agent profile with semantic fields
             task_description (str): Description of the task the agent will perform
             tools (List[str]): List of tools available to the agent
-            
+
         Returns:
             str: Generated agent profile/system prompt
         """
-        logger.info(f"Generating {profile_type} profile for task: {task_description[:50]}...")
-        
+        profile_str = f"{agent_profile.task_type}:{agent_profile.complexity}"
+        logger.info(f"Generating {profile_str} profile for task: {task_description[:50]}...")
+
         try:
             # For now, use template-based profiles
             # TODO: Replace with LLM-generated profiles later
-            profile = self._get_template_profile(profile_type, task_description, tools)
-            logger.info(f"Profile generated successfully for {profile_type}")
+            profile = self._get_template_profile(agent_profile, task_description, tools)
+            logger.info(f"Profile generated successfully for {profile_str}")
             return profile
-            
+
         except Exception as e:
             logger.error(f"Failed to generate profile: {e}")
-            return self._get_fallback_profile(profile_type)
+            return self._get_fallback_profile(agent_profile)
     
-    def _get_template_profile(self, profile_type: str, task_description: str, tools: List[str]) -> str:
-        """Generate profile from templates based on type and context."""
-        
-        # Base profile templates
-        base_profiles = {
-            "lightweight": "You are a fast, efficient agent specialized in data acquisition and straightforward tasks.",
-            "standard": "You are an analytical agent with strong reasoning capabilities for complex analysis.",
-            "collaborative": "You are a senior advisor with multi-perspective analysis capabilities."
+    def _get_template_profile(self, agent_profile: AgentProfile, task_description: str, tools: List[str]) -> str:
+        """Generate profile from templates based on agent profile and context."""
+
+        # Base profiles by task type
+        task_type_profiles = {
+            "SEARCH": "You are a specialized information retrieval agent focused on finding and collecting relevant data.",
+            "THINK": "You are an analytical agent specialized in processing information and generating insights.",
+            "AGGREGATE": "You are a synthesis agent specialized in combining information and creating comprehensive outputs."
+        }
+
+        # Complexity modifiers
+        complexity_modifiers = {
+            "QUICK": "Work efficiently and provide concise, direct results.",
+            "THOROUGH": "Apply systematic analysis with detailed reasoning and validation.",
+            "DEEP": "Conduct comprehensive multi-perspective analysis with extensive reasoning."
         }
         
+        # Output format guidelines
+        output_format_guidelines = {
+            "DATA": "Provide structured, factual information in a clear, organized format.",
+            "ANALYSIS": "Present insights, patterns, and conclusions with supporting evidence.",
+            "REPORT": "Create comprehensive, well-formatted final outputs with executive summaries."
+        }
+
+        # Reasoning style instructions
+        reasoning_style_instructions = {
+            "DIRECT": "Be straightforward and fact-focused with minimal interpretation.",
+            "ANALYTICAL": "Use step-by-step methodology and show your reasoning process.",
+            "CREATIVE": "Explore multiple perspectives and provide comprehensive synthesis."
+        }
+
         # Tool-specific instructions
         tool_instructions = {
             "YFinanceTools": "Use YFinance tools to retrieve accurate, up-to-date financial data and stock information.",
-            "WebSearchTools": "Use web search tools to find recent news, articles, and market information.",
-            "DataProcessorTools": "Use data processing tools to extract, analyze, and manipulate numerical data and financial metrics.",
-            "ReportBuilderTools": "Use report building tools to create professional, well-formatted investment reports and summaries."
+            "WebSearchTools": "Use web search tools to find recent news, articles, and market information."
         }
-        
-        # Task-specific guidance
-        task_guidance = self._get_task_guidance(task_description)
-        
-        # Build the complete profile
-        base = base_profiles.get(profile_type, base_profiles["standard"])
-        
-        profile_parts = [base]
-        
+
+        # Build the complete profile using the structured fields
+        base_task_profile = task_type_profiles.get(agent_profile.task_type,
+                                                   task_type_profiles["THINK"])
+
+        profile_parts = [base_task_profile]
+
+        # Add complexity modifier
+        complexity_instruction = complexity_modifiers.get(agent_profile.complexity,
+                                                          complexity_modifiers["THOROUGH"])
+        profile_parts.append(complexity_instruction)
+
+        # Add output format guidance
+        output_instruction = output_format_guidelines.get(agent_profile.output_format,
+                                                          output_format_guidelines["ANALYSIS"])
+        profile_parts.append(output_instruction)
+
+        # Add reasoning style
+        reasoning_instruction = reasoning_style_instructions.get(agent_profile.reasoning_style,
+                                                                reasoning_style_instructions["ANALYTICAL"])
+        profile_parts.append(reasoning_instruction)
+
         # Add task-specific guidance
+        task_guidance = self._get_task_guidance(task_description)
         if task_guidance:
-            profile_parts.append(f"\nYour specific task: {task_guidance}")
-        
+            profile_parts.append(f"Task-specific guidance: {task_guidance}")
+
         # Add tool instructions
         if tools:
-            profile_parts.append(f"\nAvailable tools and how to use them:")
+            profile_parts.append("Available tools:")
             for tool in tools:
                 if tool in tool_instructions:
                     profile_parts.append(f"- {tool_instructions[tool]}")
-        
-        # Add general instructions based on profile type
-        if profile_type == "lightweight":
-            profile_parts.append("\nFocus on speed and efficiency. Provide clear, concise results.")
-        elif profile_type == "standard":
-            profile_parts.append("\nApproach tasks systematically with thorough analysis. Explain your reasoning.")
-        elif profile_type == "collaborative":
-            profile_parts.append("\nProvide comprehensive insights with multi-perspective analysis. Consider various scenarios and implications.")
-        
+
         return " ".join(profile_parts)
     
     def _get_task_guidance(self, task_description: str) -> str:
@@ -100,26 +127,6 @@ class ProfileGenerator:
         else:
             return "Execute the task efficiently while maintaining high quality standards."
     
-    def _get_fallback_profile(self, profile_type: str) -> str:
-        """Fallback profiles if generation fails."""
-        fallback_profiles = {
-            "lightweight": """
-You are a fast and efficient AI agent specialized in data acquisition and straightforward tasks. 
-Your strengths include quick data retrieval, efficient processing, and clear output formatting.
-Focus on speed and accuracy for routine tasks while maintaining high quality standards.
-            """.strip(),
-            
-            "standard": """
-You are a versatile AI analyst with strong reasoning and analytical capabilities. 
-Your expertise includes complex data analysis, pattern recognition, and synthesis of information.
-Approach tasks systematically, ensuring thorough analysis while maintaining efficiency.
-            """.strip(),
-            
-            "collaborative": """
-You are a senior AI advisor specializing in comprehensive analysis and strategic recommendations.
-Your capabilities include multi-perspective analysis, strategic thinking, and high-level decision support.
-Provide well-reasoned, actionable insights based on thorough analysis of all available information.
-            """.strip()
-        }
-        
-        return fallback_profiles.get(profile_type, fallback_profiles["standard"])
+    def _get_fallback_profile(self, agent_profile: AgentProfile) -> str:
+        """Simple fallback if generation fails."""
+        return "You are a helpful AI agent. Execute the given task efficiently and accurately."
