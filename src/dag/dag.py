@@ -1,5 +1,6 @@
 from typing import Dict, List, Set
 from dataclasses import dataclass
+import asyncio
 
 
 @dataclass
@@ -8,6 +9,7 @@ class DAGNode:
     id: str
     task_description: str
     agent_profile: str
+    generated_system_prompt: str
     tool_allowlist: List[str]
     dependencies: List[str]
     
@@ -46,7 +48,7 @@ class DAG:
     def is_complete(self, completed: Set[str]) -> bool:
         """Check if all nodes in the DAG have been completed."""
         return len(completed) == len(self.nodes)
-    
+      
     def validate(self) -> tuple[bool, List[str]]:
         """
         Validate the DAG for structural integrity.
@@ -97,18 +99,18 @@ class DAG:
         return False
 
 
-def build_dag_from_plan(plan) -> DAG:
+async def build_dag_from_plan(plan) -> DAG:
     """
-    Build a DAG from planner output (Plan object or dict).
-    
+    Build a DAG from planner output (Plan object or dict) with parallel profile generation.
+
     Args:
         plan: Plan object from planner or dict with 'subtasks' key
-        
+
     Returns:
-        DAG object ready for execution
+        DAG object ready for execution with pre-generated system prompts
     """
     dag = DAG()
-    
+
     # Handle both Plan object and dict formats
     if hasattr(plan, 'subtasks'):
         subtasks = plan.subtasks
@@ -116,33 +118,59 @@ def build_dag_from_plan(plan) -> DAG:
         subtasks = plan['subtasks']
     else:
         raise ValueError("Invalid plan format: missing 'subtasks'")
-    
-    # Handle dict of subtasks (from planner JSON output)
-    if isinstance(subtasks, dict):
-        for task_id, subtask_data in subtasks.items():
-            if hasattr(subtask_data, 'task_description'):
-                # SubtaskNode object
-                node = DAGNode(
-                    id=task_id,
-                    task_description=subtask_data.task_description,
-                    agent_profile=subtask_data.agent_profile,
-                    tool_allowlist=subtask_data.tool_allowlist,
-                    dependencies=subtask_data.dependencies or []
-                )
-            else:
-                # Dict format
-                node = DAGNode(
-                    id=task_id,
-                    task_description=subtask_data['task_description'],
-                    agent_profile=subtask_data['agent_profile'],
-                    tool_allowlist=subtask_data['tool_allowlist'],
-                    dependencies=subtask_data.get('dependencies', [])
-                )
-            dag.add_node(node)
-    
+
+    # Initialize profile generator
+    from kernel.profiles import ProfileGenerator
+    profile_generator = ProfileGenerator()
+
+    # Generate all profiles in parallel
+    profile_tasks = {}
+    for task_id, subtask_data in subtasks.items():
+        if hasattr(subtask_data, 'task_description'):
+            # SubtaskNode object
+            task_desc = subtask_data.task_description
+            agent_prof = subtask_data.agent_profile
+            tools = subtask_data.tool_allowlist
+        else:
+            # Dict format
+            task_desc = subtask_data['task_description']
+            agent_prof = subtask_data['agent_profile']
+            tools = subtask_data['tool_allowlist']
+
+        dependencies = subtask_data.dependencies if hasattr(subtask_data, 'dependencies') else subtask_data.get('dependencies', [])
+        profile_tasks[task_id] = profile_generator.generate_profile(agent_prof, task_desc, tools, dependencies)
+
+    # Wait for all profiles to be generated
+    profile_results = await asyncio.gather(*profile_tasks.values())
+    generated_profiles = dict(zip(profile_tasks.keys(), profile_results))
+
+    # Create DAG nodes with generated profiles
+    for task_id, subtask_data in subtasks.items():
+        if hasattr(subtask_data, 'task_description'):
+            # SubtaskNode object
+            node = DAGNode(
+                id=task_id,
+                task_description=subtask_data.task_description,
+                agent_profile=subtask_data.agent_profile,
+                generated_system_prompt=generated_profiles[task_id],
+                tool_allowlist=subtask_data.tool_allowlist,
+                dependencies=subtask_data.dependencies or []
+            )
+        else:
+            # Dict format
+            node = DAGNode(
+                id=task_id,
+                task_description=subtask_data['task_description'],
+                agent_profile=subtask_data['agent_profile'],
+                generated_system_prompt=generated_profiles[task_id],
+                tool_allowlist=subtask_data['tool_allowlist'],
+                dependencies=subtask_data.get('dependencies', [])
+            )
+        dag.add_node(node)
+
     # Validate the constructed DAG
     is_valid, errors = dag.validate()
     if not is_valid:
         raise ValueError(f"Invalid DAG structure: {'; '.join(errors)}")
-    
+
     return dag

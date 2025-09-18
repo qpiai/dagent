@@ -17,7 +17,7 @@ async def main():
     # Step 1: Create plan
     print("Creating plan...")
     planner = Planner()
-    query = "What is the current age of the last american(by nationality) experimental physicist to win the nobel peace prize?"
+    query = "Question: Here is a representation of a Roman inscription, originally found on a tombstone. Provide a translation for the Palmyrene script. A transliteration of the text is provided: RGYNᵓ BT ḤRY BR ᶜTᵓ ḤBL"
     
 
     plan = await planner.create_plan(query, AVAILABLE_AGENT_PROFILES, AVAILABLE_TOOLS)
@@ -66,10 +66,10 @@ async def main():
         json.dump(plan_data, f, indent=2)
     print(f"\nPlan saved to: generated_plan.json")
     
-    # Step 2: Convert to DAG
-    print("Converting to DAG...")
-    dag = build_dag_from_plan(plan)
-    print(f"DAG created: {len(dag.nodes)} nodes")
+    # Step 2: Convert to DAG with profile generation
+    print("Converting to DAG and generating profiles...")
+    dag = await build_dag_from_plan(plan)
+    print(f"DAG created: {len(dag.nodes)} nodes with pre-generated profiles")
     
     # Step 3: Execute workflow
     print("Executing workflow...")

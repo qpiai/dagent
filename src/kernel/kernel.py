@@ -8,10 +8,17 @@ import time
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
+from agno.models.google import Gemini
 
 from dag import DAG, DAGNode
 from tools import YFinanceTools, WebSearchTools
 from .profiles import ProfileGenerator
+
+# Import centralized tracing
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from tracing import langfuse, observe
 
 logger = logging.getLogger(__name__)
 
@@ -101,14 +108,10 @@ class KernelAgent:
         """Create a real Agno agent for a specific node."""
         # Simulate realistic agent creation time
         await asyncio.sleep(0.1)
-        
+
         try:
-            # Generate profile for this specific agent
-            profile = self.profile_generator.generate_profile(
-                agent_profile=node.agent_profile,
-                task_description=node.task_description,
-                tools=node.tool_allowlist
-            )
+            # Use pre-generated profile from DAG node
+            profile = node.generated_system_prompt
             
             # Create tool instances for this agent
             tools = []
@@ -130,12 +133,24 @@ class KernelAgent:
             config = model_configs.get(node.agent_profile.complexity, model_configs["THOROUGH"])
             
             # Create the real Agno agent
+            # agent = Agent(
+            #     model=OpenAIChat(
+            #         id="gpt-4o",
+            #         temperature=config["temperature"],
+            #         max_tokens=config["max_tokens"],
+            #         top_p=0.9
+            #     ),
+            #     tools=tools,
+            #     description=profile,
+            #     markdown=False,
+            #     debug_mode=False,
+            #     add_datetime_to_instructions=True,
+            #     show_tool_calls=False
+            # )
+
             agent = Agent(
-                model=OpenAIChat(
-                    id="gpt-4o",
-                    temperature=config["temperature"],
-                    max_tokens=config["max_tokens"],
-                    top_p=0.9
+                model=Gemini(
+                    id="gemini-2.5-flash"
                 ),
                 tools=tools,
                 description=profile,
@@ -230,12 +245,28 @@ class KernelAgent:
             
             full_prompt = "\n".join(prompt_parts)
             
+            # Simple agent tracing with meaningful name
+            try:
+                langfuse.update_current_trace(
+                    name=node.id,  # Use the DAG node name
+                    input=full_prompt,
+                    tags=["dag_agent", node.id, node.agent_profile.task_type]
+                )
+            except Exception as e:
+                logger.warning(f"Agent tracing failed: {e}")
+
             # Execute with the real Agno agent
             logger.info(f"Executing agent {node.id} with {len(agent.tools)} tools")
             response = await agent.arun(full_prompt)
-            
+
             # Extract result content
             result_content = response.content if hasattr(response, 'content') else str(response)
+
+            # Trace output
+            try:
+                langfuse.update_current_trace(output=result_content)
+            except Exception as e:
+                logger.warning(f"Agent output tracing failed: {e}")
             
             execution_time = time.time() - start_time
             

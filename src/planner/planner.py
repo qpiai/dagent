@@ -1,5 +1,6 @@
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
+from agno.models.google import Gemini
 from agno.models.openai import OpenAILike
 from pydantic import BaseModel
 from typing import List, Dict, Optional, Literal
@@ -9,12 +10,19 @@ import asyncio
 from dotenv import load_dotenv
 from .prompts import PLANNER_SYSTEM_PROMPT, AVAILABLE_AGENT_PROFILES, EXAMPLE_JSON, AVAILABLE_TOOLS
 
-load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 
+
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 model_id = os.getenv("MODEL_ID")
 base_url = os.getenv("BASE_URL")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
+# Import centralized tracing
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from tracing import langfuse, observe
 
 class AgentProfile(BaseModel):
     """Agent profile configuration with semantic fields."""
@@ -45,19 +53,36 @@ class Planner:
     
     @property
     def agent(self):
+        # if self._agent is None:
+        #     self._agent = Agent(
+        #         model=OpenAIChat(
+        #             id="gpt-4o"),
+        #         description=PLANNER_SYSTEM_PROMPT,
+        #         markdown=False,
+        #         debug_mode=False,
+        #         add_datetime_to_instructions=True,
+        #         exponential_backoff=True,
+        #         delay_between_retries=2,
+        #     )
+        
         if self._agent is None:
             self._agent = Agent(
-                model=OpenAIChat(
-                    id="gpt-4o"),
+            model = Gemini(
+                id="gemini-2.5-flash",
+                temperature=0.3,
+                ),
                 description=PLANNER_SYSTEM_PROMPT,
                 markdown=False,
                 debug_mode=False,
                 add_datetime_to_instructions=True,
-                exponential_backoff=True,
+                exponential_backoff = True,
                 delay_between_retries=2,
-            )
+                # response_model=Plan,
+
+        )
         return self._agent
 
+    @observe()
     async def create_plan(
         self,
         user_query: str,
@@ -68,6 +93,12 @@ class Planner:
         iteration: int = 1
     ) -> Plan:
         """Creates a plan and returns a validated Pydantic Plan object"""
+
+        # Simple input tracing
+        try:
+            langfuse.update_current_trace(name="create_plan", input=user_query, tags=["planner"])
+        except Exception as e:
+            print(f"Langfuse input tracing failed: {e}")
 
         profiles_text = "\n".join([
             f"- **{list(p.keys())[0]}**: '{list(p.values())[0]}', **description**: \"{p['description']}\""
@@ -192,7 +223,13 @@ Please generate the optimized JSON plan based on this briefing and your core ins
             plan_dict = json.loads(json_text)
             validated_plan = Plan(**plan_dict)
             print(f"Plan type: {type(validated_plan)}")
-            
+
+            # Simple output tracing
+            try:
+                langfuse.update_current_trace(output=validated_plan.model_dump_json(indent=2))
+            except Exception as e:
+                print(f"Langfuse output tracing failed: {e}")
+
             return validated_plan
             
         except json.JSONDecodeError as e:

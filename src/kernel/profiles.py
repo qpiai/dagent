@@ -3,6 +3,9 @@
 from typing import List
 import logging
 from planner.planner import AgentProfile
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.models.google import Gemini
 
 logger = logging.getLogger(__name__)
 
@@ -11,15 +14,28 @@ class ProfileGenerator:
     """Generates detailed agent profiles based on tasks and tools."""
 
     def __init__(self):
-        pass
+        # self._llm_agent = Agent(
+        #     model=OpenAIChat(id="gpt-4o-mini"),
+        #     description="You are a system prompt generator for AI agents. Generate clear, focused system prompts based on agent profiles and tasks.",
+        #     markdown=False,
+        #     debug_mode=False
+        # )
 
-    def generate_profile(self, agent_profile: AgentProfile, task_description: str, tools: List[str]) -> str:
-        """Generate a detailed agent profile.
+        self._llm_agent = Agent(
+            model=Gemini(id="gemini-2.5-flash"),
+            description="You are a system prompt generator for AI agents. Generate clear, focused system prompts based on agent profiles and tasks.",
+            markdown=False,
+            debug_mode=False
+        )
+
+    async def generate_profile(self, agent_profile: AgentProfile, task_description: str, tools: List[str], dependencies: List[str] = None) -> str:
+        """Generate a detailed agent profile using LLM.
 
         Args:
             agent_profile (AgentProfile): Structured agent profile with semantic fields
             task_description (str): Description of the task the agent will perform
             tools (List[str]): List of tools available to the agent
+            dependencies (List[str]): List of dependency task IDs
 
         Returns:
             str: Generated agent profile/system prompt
@@ -27,106 +43,110 @@ class ProfileGenerator:
         profile_str = f"{agent_profile.task_type}:{agent_profile.complexity}"
         logger.info(f"Generating {profile_str} profile for task: {task_description[:50]}...")
 
-        try:
-            # For now, use template-based profiles
-            # TODO: Replace with LLM-generated profiles later
-            profile = self._get_template_profile(agent_profile, task_description, tools)
-            logger.info(f"Profile generated successfully for {profile_str}")
-            return profile
+        # Build tool descriptions
+        tool_descriptions = self._get_tool_descriptions(tools)
 
-        except Exception as e:
-            logger.error(f"Failed to generate profile: {e}")
-            return self._get_fallback_profile(agent_profile)
+        # Build dependency context
+        dependency_context = self._get_dependency_context(dependencies, agent_profile.task_type)
+
+        prompt = f"""You are an AI agent operating within a DAG (Directed Acyclic Graph) workflow system. Generate a focused system prompt for this agent:
+
+WORKFLOW CONTEXT:
+- You are part of a coordinated multi-agent workflow
+- Your role: {agent_profile.task_type} ({self._get_task_type_description(agent_profile.task_type)})
+- Complexity level: {agent_profile.complexity} ({self._get_complexity_description(agent_profile.complexity)})
+- Expected output: {agent_profile.output_format} ({self._get_output_format_description(agent_profile.output_format)})
+- Reasoning approach: {agent_profile.reasoning_style} ({self._get_reasoning_style_description(agent_profile.reasoning_style)})
+
+SPECIFIC TASK: {task_description}
+
+{dependency_context}
+
+AVAILABLE TOOLS:
+{tool_descriptions}
+
+Generate a clear, direct system prompt that:
+1. Establishes the agent's role in the workflow
+2. Provides clear task execution instructions
+3. Emphasizes coordination with other agents in the DAG
+4. Includes tool usage guidance
+
+Keep it concise and actionable."""
+
+        response = await self._llm_agent.arun(prompt)
+        generated_profile = response.content.strip()
+        logger.info(f"Profile generated successfully for {profile_str}")
+        return generated_profile
     
-    def _get_template_profile(self, agent_profile: AgentProfile, task_description: str, tools: List[str]) -> str:
-        """Generate profile from templates based on agent profile and context."""
-
-        # Base profiles by task type
-        task_type_profiles = {
-            "SEARCH": "You are a specialized information retrieval agent focused on finding and collecting relevant data.",
-            "THINK": "You are an analytical agent specialized in processing information and generating insights.",
-            "AGGREGATE": "You are a synthesis agent specialized in combining information and creating comprehensive outputs."
+    def _get_task_type_description(self, task_type: str) -> str:
+        """Get description for task type."""
+        descriptions = {
+            "SEARCH": "Information retrieval, data gathering, web search, API calls",
+            "THINK": "Analysis, reasoning, processing existing data, decision making",
+            "AGGREGATE": "Synthesis, combining results, final report generation"
         }
+        return descriptions.get(task_type, "General task execution")
 
-        # Complexity modifiers
-        complexity_modifiers = {
-            "QUICK": "Work efficiently and provide concise, direct results.",
-            "THOROUGH": "Apply systematic analysis with detailed reasoning and validation.",
-            "DEEP": "Conduct comprehensive multi-perspective analysis with extensive reasoning."
+    def _get_complexity_description(self, complexity: str) -> str:
+        """Get description for complexity level."""
+        descriptions = {
+            "QUICK": "Simple, straightforward tasks with minimal reasoning",
+            "THOROUGH": "Systematic analysis requiring detailed reasoning and validation",
+            "DEEP": "Comprehensive multi-perspective analysis with extensive reasoning"
         }
-        
-        # Output format guidelines
-        output_format_guidelines = {
-            "DATA": "Provide structured, factual information in a clear, organized format.",
-            "ANALYSIS": "Present insights, patterns, and conclusions with supporting evidence.",
-            "REPORT": "Create comprehensive, well-formatted final outputs with executive summaries."
+        return descriptions.get(complexity, "Standard complexity")
+
+    def _get_output_format_description(self, output_format: str) -> str:
+        """Get description for output format."""
+        descriptions = {
+            "DATA": "Raw facts, structured information, search results, extracted data",
+            "ANALYSIS": "Insights, patterns, conclusions, comparative analysis",
+            "REPORT": "Final formatted answers, summaries, recommendations"
         }
+        return descriptions.get(output_format, "Standard output")
 
-        # Reasoning style instructions
-        reasoning_style_instructions = {
-            "DIRECT": "Be straightforward and fact-focused with minimal interpretation.",
-            "ANALYTICAL": "Use step-by-step methodology and show your reasoning process.",
-            "CREATIVE": "Explore multiple perspectives and provide comprehensive synthesis."
+    def _get_reasoning_style_description(self, reasoning_style: str) -> str:
+        """Get description for reasoning style."""
+        descriptions = {
+            "DIRECT": "Fact-focused, straightforward, minimal interpretation",
+            "ANALYTICAL": "Step-by-step methodology, systematic reasoning",
+            "CREATIVE": "Multi-angle exploration, alternative perspectives, comprehensive synthesis"
         }
-
-        # Tool-specific instructions
-        tool_instructions = {
-            "YFinanceTools": "Use YFinance tools to retrieve accurate, up-to-date financial data and stock information.",
-            "WebSearchTools": "Use web search tools to find recent news, articles, and market information."
-        }
-
-        # Build the complete profile using the structured fields
-        base_task_profile = task_type_profiles.get(agent_profile.task_type,
-                                                   task_type_profiles["THINK"])
-
-        profile_parts = [base_task_profile]
-
-        # Add complexity modifier
-        complexity_instruction = complexity_modifiers.get(agent_profile.complexity,
-                                                          complexity_modifiers["THOROUGH"])
-        profile_parts.append(complexity_instruction)
-
-        # Add output format guidance
-        output_instruction = output_format_guidelines.get(agent_profile.output_format,
-                                                          output_format_guidelines["ANALYSIS"])
-        profile_parts.append(output_instruction)
-
-        # Add reasoning style
-        reasoning_instruction = reasoning_style_instructions.get(agent_profile.reasoning_style,
-                                                                reasoning_style_instructions["ANALYTICAL"])
-        profile_parts.append(reasoning_instruction)
-
-        # Add task-specific guidance
-        task_guidance = self._get_task_guidance(task_description)
-        if task_guidance:
-            profile_parts.append(f"Task-specific guidance: {task_guidance}")
-
-        # Add tool instructions
-        if tools:
-            profile_parts.append("Available tools:")
-            for tool in tools:
-                if tool in tool_instructions:
-                    profile_parts.append(f"- {tool_instructions[tool]}")
-
-        return " ".join(profile_parts)
+        return descriptions.get(reasoning_style, "Standard reasoning")
     
-    def _get_task_guidance(self, task_description: str) -> str:
-        """Generate task-specific guidance based on the task description."""
-        task_lower = task_description.lower()
-        
-        if "fetch" in task_lower or "retrieve" in task_lower or "get" in task_lower:
-            return "Focus on accurate data retrieval and proper formatting of the information."
-        elif "analyze" in task_lower or "analysis" in task_lower:
-            return "Perform thorough analysis, identify key patterns, and provide clear insights."
-        elif "search" in task_lower or "find" in task_lower:
-            return "Conduct comprehensive searches and filter results for relevance and quality."
-        elif "report" in task_lower or "generate" in task_lower or "create" in task_lower:
-            return "Create well-structured, professional output with clear formatting and actionable insights."
-        elif "compare" in task_lower or "comparison" in task_lower:
-            return "Perform detailed comparisons highlighting key differences and similarities."
-        else:
-            return "Execute the task efficiently while maintaining high quality standards."
-    
-    def _get_fallback_profile(self, agent_profile: AgentProfile) -> str:
-        """Simple fallback if generation fails."""
-        return "You are a helpful AI agent. Execute the given task efficiently and accurately."
+    def _get_tool_descriptions(self, tools: List[str]) -> str:
+        """Get detailed descriptions for tools."""
+        tool_info = {
+            "YFinanceTools": "Financial data from Yahoo Finance - get stock prices, company info, financial statements, analyst recommendations, price history",
+            "WebSearchTools": "Web search using Exa API - search general web content, recent news articles, financial news, get news summaries"
+        }
+
+        if not tools:
+            return "No tools available"
+
+        descriptions = []
+        for tool in tools:
+            desc = tool_info.get(tool, f"{tool} - tool description not available")
+            descriptions.append(f"- {tool}: {desc}")
+
+        return "\n".join(descriptions)
+
+    def _get_dependency_context(self, dependencies: List[str], task_type: str) -> str:
+        """Get context about dependencies."""
+        if not dependencies:
+            if task_type == "SEARCH":
+                return "DEPENDENCY CONTEXT: You are a starting node in the workflow. Your output will be used by downstream agents."
+            else:
+                return "DEPENDENCY CONTEXT: You are a starting node in the workflow."
+
+        dep_context = f"DEPENDENCY CONTEXT: You will receive input from {len(dependencies)} upstream task(s): {', '.join(dependencies)}."
+
+        if task_type == "SEARCH":
+            dep_context += " Use this context to inform your search strategy."
+        elif task_type == "THINK":
+            dep_context += " Analyze and process the provided information."
+        elif task_type == "AGGREGATE":
+            dep_context += " Synthesize all inputs into a comprehensive final output."
+
+        return dep_context
+
