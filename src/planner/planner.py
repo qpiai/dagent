@@ -53,34 +53,35 @@ class Planner:
     
     @property
     def agent(self):
-        # if self._agent is None:
-        #     self._agent = Agent(
-        #         model=OpenAIChat(
-        #             id="gpt-4o"),
-        #         description=PLANNER_SYSTEM_PROMPT,
-        #         markdown=False,
-        #         debug_mode=False,
-        #         add_datetime_to_instructions=True,
-        #         exponential_backoff=True,
-        #         delay_between_retries=2,
-        #     )
-        
         if self._agent is None:
             self._agent = Agent(
-            model = Gemini(
-                id="gemini-2.5-flash",
-                temperature=0.3,
-                ),
+                model=OpenAIChat(
+                    id="gpt-4o"),
                 description=PLANNER_SYSTEM_PROMPT,
                 markdown=False,
                 debug_mode=False,
                 add_datetime_to_instructions=True,
-                exponential_backoff = True,
+                exponential_backoff=True,
                 delay_between_retries=2,
-                # response_model=Plan,
-
-        )
+            )
         return self._agent
+        
+        # if self._agent is None:
+        #     self._agent = Agent(
+        #     model = Gemini(
+        #         id="gemini-2.5-flash",
+        #         temperature=0.3,
+        #         ),
+        #         description=PLANNER_SYSTEM_PROMPT,
+        #         markdown=False,
+        #         debug_mode=False,
+        #         add_datetime_to_instructions=True,
+        #         exponential_backoff = True,
+        #         delay_between_retries=2,
+        #         # response_model=Plan,
+
+        # )
+        # return self._agent
 
     @observe()
     async def create_plan(
@@ -243,45 +244,45 @@ Please generate the optimized JSON plan based on this briefing and your core ins
             raise
 
 
-async def main():
-    planner = Planner()
+# async def main():
+#     planner = Planner()
 
-    print("=== Scenario 1: Basic Plan Generation ===")
-    user_query_1 = "Analyze Tesla's Q4 2024 performance and provide an investment recommendation."
+#     print("=== Scenario 1: Basic Plan Generation ===")
+#     user_query_1 = "Analyze Tesla's Q4 2024 performance and provide an investment recommendation."
 
-    plan_1 = await planner.create_plan(
-        user_query=user_query_1,
-        available_profiles=AVAILABLE_AGENT_PROFILES,
-        available_tools=AVAILABLE_TOOLS,
-    )
+#     plan_1 = await planner.create_plan(
+#         user_query=user_query_1,
+#         available_profiles=AVAILABLE_AGENT_PROFILES,
+#         available_tools=AVAILABLE_TOOLS,
+#     )
 
-    print("\n✅ Generated Plan:")
-    print(plan_1.model_dump_json(indent=2))
+#     print("\n✅ Generated Plan:")
+#     print(plan_1.model_dump_json(indent=2))
 
-    print("\n=== Scenario 2: Plan with Feedback ===")
-    mock_feedback = {
-        "output_score": 0.8,
-        "traces_score": 0.7,
-        "evaluator_feedback": "The plan is too complex and requires too many steps. Please simplify it."
-    }
+#     print("\n=== Scenario 2: Plan with Feedback ===")
+#     mock_feedback = {
+#         "output_score": 0.8,
+#         "traces_score": 0.7,
+#         "evaluator_feedback": "The plan is too complex and requires too many steps. Please simplify it."
+#     }
 
-    plan_2 = await planner.create_plan(
-        user_query=user_query_1,
-        available_profiles=AVAILABLE_AGENT_PROFILES,
-        available_tools=AVAILABLE_TOOLS,
-        feedback=mock_feedback,
-        previous_plan=plan_1,
-        iteration=2
-    )
+#     plan_2 = await planner.create_plan(
+#         user_query=user_query_1,
+#         available_profiles=AVAILABLE_AGENT_PROFILES,
+#         available_tools=AVAILABLE_TOOLS,
+#         feedback=mock_feedback,
+#         previous_plan=plan_1,
+#         iteration=2
+#     )
 
-    print("\n✅ Generated Plan with Feedback:")
-    print(plan_2.model_dump_json(indent=2))
+#     print("\n✅ Generated Plan with Feedback:")
+#     print(plan_2.model_dump_json(indent=2))
 
-    print("\n=== Validation Test ===")
-    print(f"Plan 1 type: {type(plan_1)}")
-    print(f"Plan 1 has {len(plan_1.subtasks)} subtasks")
-    print(f"Subtask types: {[type(node) for node in plan_1.subtasks.values()]}")
+#     print("\n=== Validation Test ===")
+#     print(f"Plan 1 type: {type(plan_1)}")
+#     print(f"Plan 1 has {len(plan_1.subtasks)} subtasks")
+#     print(f"Subtask types: {[type(node) for node in plan_1.subtasks.values()]}")
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+# if __name__ == "__main__":
+#     asyncio.run(main())

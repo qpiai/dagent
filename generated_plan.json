@@ -1,13 +1,13 @@
 {
-  "query": "Which condition of Arrhenius's sixth impossibility theorem do critical-level views violate?Answer Choices:A. Egalitarian DominanceB. General Non-Extreme PriorityC. Non-ElitismD. Weak Non-SadismE. Weak Quality Addition",
-  "planning_rationale": "The query is a specific factual knowledge question within philosophy, requiring a deep understanding of two distinct concepts: 'Arrhenius's sixth impossibility theorem' and 'critical-level views.' The plan first parallelizes the search for detailed information on both concepts to maximize efficiency. Once the necessary information is gathered, a 'THINK' agent will perform a thorough, analytical comparison to identify the specific condition of the theorem that critical-level views violate. Finally, an 'AGGREGATE' agent will select the correct answer from the provided choices and justify it based on the analysis. This approach ensures comprehensive data retrieval, rigorous analysis, and a precise final answer.",
-  "expected_final_output": "The letter corresponding to the condition of Arrhenius's sixth impossibility theorem that critical-level views violate, along with a detailed justification for the selection.",
+  "query": "test",
+  "planning_rationale": "The user query 'test' is ambiguous and does not provide a specific context or goal. Therefore, we will proceed with a demonstration plan to handle such generic queries. This plan will illustrate how a query can be approached by setting up a basic structure to distinguish possible interpretations or outputs. We'll create two hypothetical subtasks: one for collecting raw data via a search and another for compiling a simple report from collected data. The approach is intentionally generalized to align with the vague nature of the query.",
+  "expected_final_output": "A simple report summarizing potential interpretations or contexts of the term 'test'.",
   "subtasks": {
-    "search_arrhenius_theorem": {
-      "task_description": "Search for detailed information on Arrhenius's sixth impossibility theorem. Focus on understanding its precise statement, its conditions (axioms), and the philosophical context, particularly in population ethics. Prioritize academic papers, encyclopedias of philosophy, or reputable philosophical resources.",
+    "search_general_information": {
+      "task_description": "Search the web for general information related to 'test' to identify potential contexts or meanings.",
       "agent_profile": {
         "task_type": "SEARCH",
-        "complexity": "THOROUGH",
+        "complexity": "QUICK",
         "output_format": "DATA",
         "reasoning_style": "DIRECT"
       },
@@ -16,44 +16,17 @@
       ],
       "dependencies": []
     },
-    "search_critical_level_views": {
-      "task_description": "Search for detailed information on 'critical-level views' in population ethics. Understand their core tenets, how they differ from other population ethics theories (e.g., total utilitarianism, average utilitarianism), and their implications. Identify key characteristics that might lead to violations of ethical theorems.",
-      "agent_profile": {
-        "task_type": "SEARCH",
-        "complexity": "THOROUGH",
-        "output_format": "DATA",
-        "reasoning_style": "DIRECT"
-      },
-      "tool_allowlist": [
-        "WebSearchTools"
-      ],
-      "dependencies": []
-    },
-    "analyze_violation": {
-      "task_description": "Analyze the gathered information from 'search_arrhenius_theorem' and 'search_critical_level_views'. Systematically compare the conditions (axioms) of Arrhenius's sixth impossibility theorem with the principles and implications of critical-level views. Identify which specific condition is violated by critical-level views, providing step-by-step reasoning and referencing the details of both concepts.",
-      "agent_profile": {
-        "task_type": "THINK",
-        "complexity": "DEEP",
-        "output_format": "ANALYSIS",
-        "reasoning_style": "ANALYTICAL"
-      },
-      "tool_allowlist": [],
-      "dependencies": [
-        "search_arrhenius_theorem",
-        "search_critical_level_views"
-      ]
-    },
-    "select_final_answer": {
-      "task_description": "Based on the analysis of the violated condition, select the correct answer from the provided options: A. Egalitarian Dominance, B. General Non-Extreme Priority, C. Non-Elitism, D. Weak Non-Sadism, E. Weak Quality Addition. State the chosen letter and provide a clear, concise justification linking it to the identified violation.",
+    "compile_test_report": {
+      "task_description": "Compile the information found into a report summarizing potential interpretations or contexts of 'test'.",
       "agent_profile": {
         "task_type": "AGGREGATE",
-        "complexity": "THOROUGH",
+        "complexity": "QUICK",
         "output_format": "REPORT",
         "reasoning_style": "DIRECT"
       },
       "tool_allowlist": [],
       "dependencies": [
-        "analyze_violation"
+        "search_general_information"
       ]
     }
   }

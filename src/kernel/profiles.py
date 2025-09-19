@@ -28,7 +28,7 @@ class ProfileGenerator:
         # )
 
         self._llm_agent = Agent(
-            model=Gemini(id="gemini-2.5-flash"),
+            model=OpenAIChat(id="gpt-5-mini"),
             description="You are a system prompt generator for AI agents. Generate clear, focused system prompts based on agent profiles and tasks.",
             markdown=False,
             debug_mode=False

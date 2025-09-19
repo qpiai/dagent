@@ -13,6 +13,7 @@ from agno.models.google import Gemini
 from dag import DAG, DAGNode
 from tools import YFinanceTools, WebSearchTools
 from .profiles import ProfileGenerator
+from .judge import Judge, JudgeEvaluation
 
 # Import centralized tracing
 import sys
@@ -44,6 +45,7 @@ class KernelAgent:
         self.node_agents: Dict[str, Agent] = {}
         self.profile_generator = ProfileGenerator()
         self.tool_registry = self._create_tool_registry()
+        self.judge = Judge()
         
     def _create_tool_registry(self) -> Dict[str, Any]:
         """Create registry of available tool classes."""
@@ -149,8 +151,8 @@ class KernelAgent:
             # )
 
             agent = Agent(
-                model=Gemini(
-                    id="gemini-2.5-flash"
+                model=OpenAIChat(
+                    id="gpt-5-mini"
                 ),
                 tools=tools,
                 description=profile,
@@ -178,6 +180,7 @@ class KernelAgent:
         """Execute DAG with real Agno agents."""
         completed = {}
         round_num = 1
+        final_nodes = dag.get_final_nodes()  # Get final nodes for judge optimization
         
         while len(completed) < len(dag.nodes):
             # Get ready nodes
@@ -201,7 +204,7 @@ class KernelAgent:
             # Execute all ready nodes in parallel
             tasks = []
             for node in ready_nodes:
-                task = self._execute_node_with_display(node, completed)
+                task = self._execute_node_with_display(node, completed, final_nodes)
                 tasks.append(task)
             
             # Wait for all tasks in this round
@@ -223,92 +226,173 @@ class KernelAgent:
         return completed
     
     @observe()
-    async def _execute_node_with_display(self, node: DAGNode, completed: Dict[str, ExecutionResult]) -> ExecutionResult:
-        """Execute a single node with its real Agno agent."""
-        start_time = time.time()
+    async def _execute_node_with_display(self, node: DAGNode, completed: Dict[str, ExecutionResult], final_nodes: Set[str]) -> ExecutionResult:
+        """Execute a single node with actor-critic retry logic and feedback injection."""
+        overall_start_time = time.time()
+        judge_feedback_history = []  # Track feedback from previous attempts
 
-        try:
-            # Build context from dependencies
-            context = self._build_context_for_node(node, completed)
+        # Actor-Critic Loop: Try up to max_retries + 1 times
+        for attempt in range(node.max_retries + 1):
+            start_time = time.time()
+            is_final_attempt = (attempt == node.max_retries)
 
-            # Get the real Agno agent for this node
-            agent = self.node_agents[node.id]
+            try:
+                # Build context from dependencies
+                context = self._build_context_for_node(node, completed)
 
-            # Create the prompt with context and task
-            prompt_parts = []
+                # Get the real Agno agent for this node
+                agent = self.node_agents[node.id]
 
-            if context:
-                prompt_parts.append("Context from previous tasks:")
-                prompt_parts.append(context)
-                prompt_parts.append("")
+                # Create the prompt with context and task
+                prompt_parts = []
 
-            prompt_parts.append(f"Task: {node.task_description}")
+                if context:
+                    prompt_parts.append("Context from previous tasks:")
+                    prompt_parts.append(context)
+                    prompt_parts.append("")
 
-            full_prompt = "\n".join(prompt_parts)
+                prompt_parts.append(f"Task: {node.task_description}")
 
-            # Execute with the real Agno agent (OpenLIT will auto-trace this)
-            logger.info(f"Executing agent {node.id} with {len(agent.tools)} tools")
-            response = await agent.arun(full_prompt)
+                # Add retry context with specific judge feedback
+                if attempt > 0 and judge_feedback_history:
+                    prompt_parts.append(f"\n[RETRY ATTEMPT {attempt + 1}/{node.max_retries + 1}]")
+                    prompt_parts.append("Your previous attempt was rejected by the quality judge.")
 
-            # Extract result content
-            result_content = response.content if hasattr(response, 'content') else str(response)
+                    # Inject specific feedback from judge
+                    latest_feedback = judge_feedback_history[-1]
+                    prompt_parts.append(f"\nJudge Feedback: {latest_feedback.feedback}")
 
-            langfuse.update_current_trace(
-                name=node.id,
-                input=full_prompt,
-                output=result_content,
-                tags=["agent", node.agent_profile.task_type]
-            )
-            
-            execution_time = time.time() - start_time
-            
-            # Show detailed execution info
-            print(f"\n--- EXECUTING: {node.id} ---")
-            if node.dependencies:
-                print("Input Context:")
-                for dep_id in node.dependencies:
-                    if dep_id in completed:
-                        dep_result = completed[dep_id]
-                        preview = dep_result.result[:100] + "..." if len(dep_result.result) > 100 else dep_result.result
-                        print(f"  ├─ {dep_id}: {preview}")
-            else:
-                print("Input Context: None (root task)")
-            
-            profile_str = f"{node.agent_profile.task_type}:{node.agent_profile.complexity}"
-            print(f"Agent: {node.id} ({profile_str})")
-            print(f"Tools: {', '.join(node.tool_allowlist)}")
-            print("Output:")
-            # Show full output
-            output_preview = result_content
-            for line in output_preview.split('\n'):
-                print(f"  {line}")
-            print(f"Execution time: {execution_time:.2f}s")
-            print("-" * 50)
-            
-            return ExecutionResult(
-                node_id=node.id,
-                result=result_content,
-                execution_time=execution_time,
-                agent_profile=profile_str,
-                tools_used=node.tool_allowlist,
-                success=True
-            )
-            
-        except Exception as e:
-            execution_time = time.time() - start_time
-            logger.error(f"Task {node.id} failed: {str(e)}")
-            print(f"ERROR in {node.id}: {str(e)}")
-            
-            profile_str = f"{node.agent_profile.task_type}:{node.agent_profile.complexity}"
-            return ExecutionResult(
-                node_id=node.id,
-                result="",
-                execution_time=execution_time,
-                agent_profile=profile_str,
-                tools_used=node.tool_allowlist,
-                success=False,
-                error=str(e)
-            )
+                    if latest_feedback.specific_issues:
+                        prompt_parts.append(f"Specific Issues to Address: {latest_feedback.specific_issues}")
+
+                    prompt_parts.append("\nPlease address the judge's feedback and improve your response accordingly.")
+
+                full_prompt = "\n".join(prompt_parts)
+
+                # Execute with the real Agno agent
+                logger.info(f"Executing agent {node.id} (attempt {attempt + 1}/{node.max_retries + 1})")
+                response = await agent.arun(full_prompt)
+
+                # Extract result content
+                result_content = response.content if hasattr(response, 'content') else str(response)
+
+                execution_time = time.time() - start_time
+
+                # Show detailed execution info
+                retry_info = f" (RETRY {attempt + 1})" if attempt > 0 else ""
+                print(f"\n--- EXECUTING: {node.id}{retry_info} ---")
+                if node.dependencies:
+                    print("Input Context:")
+                    for dep_id in node.dependencies:
+                        if dep_id in completed:
+                            dep_result = completed[dep_id]
+                            preview = dep_result.result[:100] + "..." if len(dep_result.result) > 100 else dep_result.result
+                            print(f"  ├─ {dep_id}: {preview}")
+                else:
+                    print("Input Context: None (root task)")
+
+                # Show judge feedback if this is a retry
+                if attempt > 0 and judge_feedback_history:
+                    latest_feedback = judge_feedback_history[-1]
+                    print(f"Judge Feedback: {latest_feedback.feedback}")
+                    if latest_feedback.specific_issues:
+                        print(f"Issues to Address: {latest_feedback.specific_issues}")
+
+                profile_str = f"{node.agent_profile.task_type}:{node.agent_profile.complexity}"
+                print(f"Agent: {node.id} ({profile_str})")
+                print(f"Tools: {', '.join(node.tool_allowlist)}")
+                print("Output:")
+                # Show full output
+                output_preview = result_content
+                for line in output_preview.split('\n'):
+                    print(f"  {line}")
+                print(f"Execution time: {execution_time:.2f}s")
+
+                # Judge evaluation (Actor-Critic) - Skip for final nodes to save tokens
+                is_final_node = node.id in final_nodes
+                if node.needs_validation and not is_final_attempt and not is_final_node:
+                    print("Judge evaluating output...")
+                    try:
+                        evaluation = await self.judge.evaluate_with_feedback(node.task_description, result_content)
+
+                        if evaluation.is_accepted:
+                            print("Judge ACCEPTED the output")
+                            print(f"Judge Feedback: {evaluation.feedback}")
+                            langfuse.update_current_trace(
+                                name=node.id,
+                                input=full_prompt,
+                                output=result_content,
+                                tags=["agent", node.agent_profile.task_type, "accepted"]
+                            )
+                            print("-" * 50)
+                            return ExecutionResult(
+                                node_id=node.id,
+                                result=result_content,
+                                execution_time=time.time() - overall_start_time,
+                                agent_profile=profile_str,
+                                tools_used=node.tool_allowlist,
+                                success=True
+                            )
+                        else:
+                            print("Judge REJECTED the output")
+                            print(f"Judge Feedback: {evaluation.feedback}")
+                            if evaluation.specific_issues:
+                                print(f"Issues to Address: {evaluation.specific_issues}")
+
+                            # Store feedback for next retry attempt
+                            judge_feedback_history.append(evaluation)
+
+                            print("Retrying with judge feedback...")
+                            print("-" * 50)
+                            continue  # Try again with feedback
+
+                    except Exception as judge_error:
+                        logger.warning(f"Judge evaluation failed: {judge_error}, accepting output")
+                        print("Judge evaluation failed, accepting output")
+                else:
+                    if is_final_node:
+                        print("Skipping judge validation (final node - saves tokens)")
+                    else:
+                        print("No validation needed or final attempt")
+
+                # Final attempt or no validation needed - return result
+                langfuse.update_current_trace(
+                    name=node.id,
+                    input=full_prompt,
+                    output=result_content,
+                    tags=["agent", node.agent_profile.task_type, "final" if is_final_attempt else "no_validation"]
+                )
+                print("-" * 50)
+                return ExecutionResult(
+                    node_id=node.id,
+                    result=result_content,
+                    execution_time=time.time() - overall_start_time,
+                    agent_profile=profile_str,
+                    tools_used=node.tool_allowlist,
+                    success=True
+                )
+
+            except Exception as e:
+                execution_time = time.time() - start_time
+                logger.error(f"Task {node.id} attempt {attempt + 1} failed: {str(e)}")
+                print(f"ERROR in {node.id} attempt {attempt + 1}: {str(e)}")
+
+                if is_final_attempt:
+                    # Final attempt failed - return error result
+                    profile_str = f"{node.agent_profile.task_type}:{node.agent_profile.complexity}"
+                    print("-" * 50)
+                    return ExecutionResult(
+                        node_id=node.id,
+                        result="",
+                        execution_time=time.time() - overall_start_time,
+                        agent_profile=profile_str,
+                        tools_used=node.tool_allowlist,
+                        success=False,
+                        error=str(e)
+                    )
+                else:
+                    print(f"Retrying after error...")
+                    continue
     
     def _build_context_for_node(self, node: DAGNode, completed: Dict[str, ExecutionResult]) -> str:
         """Build context from dependency outputs."""

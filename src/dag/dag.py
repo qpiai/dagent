@@ -12,7 +12,9 @@ class DAGNode:
     generated_system_prompt: str
     tool_allowlist: List[str]
     dependencies: List[str]
-    
+    max_retries: int = 2
+    needs_validation: bool = True
+
     def __post_init__(self):
         # Ensure all dependencies are strings for consistency
         self.dependencies = [str(dep) for dep in self.dependencies]
@@ -48,6 +50,13 @@ class DAG:
     def is_complete(self, completed: Set[str]) -> bool:
         """Check if all nodes in the DAG have been completed."""
         return len(completed) == len(self.nodes)
+
+    def get_final_nodes(self) -> Set[str]:
+        """Get nodes that have no dependents (leaf nodes)."""
+        has_dependents = set()
+        for node in self.nodes.values():
+            has_dependents.update(node.dependencies)
+        return set(self.nodes.keys()) - has_dependents
       
     def validate(self) -> tuple[bool, List[str]]:
         """
