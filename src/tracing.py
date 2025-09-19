@@ -17,10 +17,10 @@ try:
     # Initialize OpenLIT instrumentation globally
     openlit.init(tracer=langfuse._otel_tracer, disable_batch=True)
 
-    print("✅ Tracing initialized successfully")
+    print("Tracing initialized successfully")
 
 except Exception as e:
-    print(f"⚠️ Tracing initialization failed: {e}")
+    print(f"Tracing initialization failed: {e}")
     # Create dummy objects to prevent import errors
     class DummyLangfuse:
         def update_current_trace(self, **kwargs):

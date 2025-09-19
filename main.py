@@ -17,7 +17,7 @@ async def main():
     # Step 1: Create plan
     print("Creating plan...")
     planner = Planner()
-    query = "Question: Here is a representation of a Roman inscription, originally found on a tombstone. Provide a translation for the Palmyrene script. A transliteration of the text is provided: RGYNᵓ BT ḤRY BR ᶜTᵓ ḤBL"
+    query = """Which condition of Arrhenius's sixth impossibility theorem do critical-level views violate?Answer Choices:A. Egalitarian DominanceB. General Non-Extreme PriorityC. Non-ElitismD. Weak Non-SadismE. Weak Quality Addition"""
     
 
     plan = await planner.create_plan(query, AVAILABLE_AGENT_PROFILES, AVAILABLE_TOOLS)
@@ -79,9 +79,15 @@ async def main():
     # Show summary
     successful = sum(1 for r in results.values() if r.success)
     print(f"\nWorkflow completed: {successful}/{len(results)} tasks successful")
-    
+
+    # Get traces
+    from tracing import langfuse
+    traces = langfuse.get_traces(limit=10)
+    print(f"\nTraces retrieved: {len(traces.data)}")
+    print(traces)
+
     # Print parameters analysis
-    print_parameters_analysis(plan, dag, results)
+    # print_parameters_analysis(plan, dag, results)
 
 
 def print_parameters_analysis(plan, dag, results):

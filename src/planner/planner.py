@@ -94,11 +94,11 @@ class Planner:
     ) -> Plan:
         """Creates a plan and returns a validated Pydantic Plan object"""
 
-        # Simple input tracing
-        try:
-            langfuse.update_current_trace(name="create_plan", input=user_query, tags=["planner"])
-        except Exception as e:
-            print(f"Langfuse input tracing failed: {e}")
+        langfuse.update_current_trace(
+            name="create_plan",
+            input=user_query,
+            tags=["planner"]
+        )
 
         profiles_text = "\n".join([
             f"- **{list(p.keys())[0]}**: '{list(p.values())[0]}', **description**: \"{p['description']}\""
@@ -224,11 +224,12 @@ Please generate the optimized JSON plan based on this briefing and your core ins
             validated_plan = Plan(**plan_dict)
             print(f"Plan type: {type(validated_plan)}")
 
-            # Simple output tracing
-            try:
-                langfuse.update_current_trace(output=validated_plan.model_dump_json(indent=2))
-            except Exception as e:
-                print(f"Langfuse output tracing failed: {e}")
+            langfuse.update_current_trace(
+                name="create_plan",
+                input=user_query,
+                output=validated_plan.model_dump_json(indent=2),
+                tags=["planner"]
+            )
 
             return validated_plan
             

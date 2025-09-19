@@ -222,51 +222,43 @@ class KernelAgent:
         
         return completed
     
+    @observe()
     async def _execute_node_with_display(self, node: DAGNode, completed: Dict[str, ExecutionResult]) -> ExecutionResult:
         """Execute a single node with its real Agno agent."""
         start_time = time.time()
-        
+
         try:
             # Build context from dependencies
             context = self._build_context_for_node(node, completed)
-            
+
             # Get the real Agno agent for this node
             agent = self.node_agents[node.id]
-            
+
             # Create the prompt with context and task
             prompt_parts = []
-            
+
             if context:
                 prompt_parts.append("Context from previous tasks:")
                 prompt_parts.append(context)
                 prompt_parts.append("")
-            
-            prompt_parts.append(f"Task: {node.task_description}")
-            
-            full_prompt = "\n".join(prompt_parts)
-            
-            # Simple agent tracing with meaningful name
-            try:
-                langfuse.update_current_trace(
-                    name=node.id,  # Use the DAG node name
-                    input=full_prompt,
-                    tags=["dag_agent", node.id, node.agent_profile.task_type]
-                )
-            except Exception as e:
-                logger.warning(f"Agent tracing failed: {e}")
 
-            # Execute with the real Agno agent
+            prompt_parts.append(f"Task: {node.task_description}")
+
+            full_prompt = "\n".join(prompt_parts)
+
+            # Execute with the real Agno agent (OpenLIT will auto-trace this)
             logger.info(f"Executing agent {node.id} with {len(agent.tools)} tools")
             response = await agent.arun(full_prompt)
 
             # Extract result content
             result_content = response.content if hasattr(response, 'content') else str(response)
 
-            # Trace output
-            try:
-                langfuse.update_current_trace(output=result_content)
-            except Exception as e:
-                logger.warning(f"Agent output tracing failed: {e}")
+            langfuse.update_current_trace(
+                name=node.id,
+                input=full_prompt,
+                output=result_content,
+                tags=["agent", node.agent_profile.task_type]
+            )
             
             execution_time = time.time() - start_time
             

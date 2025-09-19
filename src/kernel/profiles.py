@@ -7,6 +7,12 @@ from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.models.google import Gemini
 
+# Import centralized tracing
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from tracing import langfuse, observe
+
 logger = logging.getLogger(__name__)
 
 
@@ -28,6 +34,7 @@ class ProfileGenerator:
             debug_mode=False
         )
 
+    @observe()
     async def generate_profile(self, agent_profile: AgentProfile, task_description: str, tools: List[str], dependencies: List[str] = None) -> str:
         """Generate a detailed agent profile using LLM.
 
@@ -75,6 +82,14 @@ Keep it concise and actionable."""
 
         response = await self._llm_agent.arun(prompt)
         generated_profile = response.content.strip()
+
+        langfuse.update_current_trace(
+            name=f"generate_profile_{agent_profile.task_type}_{agent_profile.complexity}",
+            input=prompt,
+            output=generated_profile,
+            tags=["profile_generation", agent_profile.task_type]
+        )
+
         logger.info(f"Profile generated successfully for {profile_str}")
         return generated_profile
     
