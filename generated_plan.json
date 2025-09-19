@@ -1,10 +1,12 @@
 {
-  "query": "test",
-  "planning_rationale": "The user query 'test' is ambiguous and does not provide a specific context or goal. Therefore, we will proceed with a demonstration plan to handle such generic queries. This plan will illustrate how a query can be approached by setting up a basic structure to distinguish possible interpretations or outputs. We'll create two hypothetical subtasks: one for collecting raw data via a search and another for compiling a simple report from collected data. The approach is intentionally generalized to align with the vague nature of the query.",
-  "expected_final_output": "A simple report summarizing potential interpretations or contexts of the term 'test'.",
+  "query": "test workflow to test teams, create team nodes",
+  "planning_rationale": "The user's query explicitly asks to 'test workflow to test teams, create team nodes'. This indicates a need to demonstrate the system's capability to utilize AGENT_TEAM nodes. Therefore, the workflow is designed to showcase this functionality with a simple, illustrative task. The plan starts with a single agent performing initial data gathering, followed by an AGENT_TEAM node that analyzes and synthesizes the gathered information. This structure allows for clear demonstration of both SINGLE_AGENT and AGENT_TEAM node types, fulfilling the user's request for a 'test workflow' that involves 'team nodes'. The topic of 'recent advancements in AI' is chosen as a generic, suitable subject for both web search and subsequent team-based analysis.",
+  "expected_final_output": "A structured summary report detailing recent advancements in Artificial Intelligence, categorized by key trends and technologies, with insights into their significance and potential impact, generated through a collaborative team effort.",
   "subtasks": {
-    "search_general_information": {
-      "task_description": "Search the web for general information related to 'test' to identify potential contexts or meanings.",
+    "initial_ai_advancements_search": {
+      "task_description": "Perform a broad web search for 'recent advancements in Artificial Intelligence' or 'AI breakthroughs in 2024-2025'. Focus on identifying key areas of progress, new technologies, and significant research findings. Collect a diverse set of relevant articles and summaries.",
+      "dependencies": [],
+      "node_type": "SINGLE_AGENT",
       "agent_profile": {
         "task_type": "SEARCH",
         "complexity": "QUICK",
@@ -13,21 +15,34 @@
       },
       "tool_allowlist": [
         "WebSearchTools"
-      ],
-      "dependencies": []
-    },
-    "compile_test_report": {
-      "task_description": "Compile the information found into a report summarizing potential interpretations or contexts of 'test'.",
-      "agent_profile": {
-        "task_type": "AGGREGATE",
-        "complexity": "QUICK",
-        "output_format": "REPORT",
-        "reasoning_style": "DIRECT"
-      },
-      "tool_allowlist": [],
-      "dependencies": [
-        "search_general_information"
       ]
+    },
+    "team_ai_analysis_and_synthesis": {
+      "task_description": "Collaboratively analyze the search results from 'initial_ai_advancements_search'. The team will: 1) Curate and filter the raw search data for relevance and quality, 2) Identify and categorize major trends and specific advancements in AI, and 3) Synthesize these findings into a comprehensive summary report highlighting the most significant developments and their potential impact.",
+      "dependencies": [
+        "initial_ai_advancements_search"
+      ],
+      "node_type": "AGENT_TEAM",
+      "team_config": {
+        "collaboration_pattern": "collaborate",
+        "agents": [
+          {
+            "role": "information_curator",
+            "description": "Review and filter the raw search results, ensuring only relevant and high-quality information on AI advancements is considered for analysis.",
+            "tools": []
+          },
+          {
+            "role": "trend_analyst",
+            "description": "Identify patterns, categorize advancements (e.g., LLMs, robotics, computer vision), and extract key insights from the curated information.",
+            "tools": []
+          },
+          {
+            "role": "report_synthesizer",
+            "description": "Compile the analysis into a structured summary report, ensuring clarity, conciseness, and comprehensive coverage of the identified AI advancements.",
+            "tools": []
+          }
+        ]
+      }
     }
   }
 }

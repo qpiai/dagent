@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import time
 
 from agno.agent import Agent
+from agno.team import Team
 from agno.models.openai import OpenAIChat
 from agno.models.google import Gemini
 
@@ -106,75 +107,108 @@ class KernelAgent:
             tools_str = ', '.join([tool.__class__.__name__ for tool in agent.tools]) if agent.tools else "No tools"
             print(f"  • {node_id} ({getattr(agent, '_profile_type', 'unknown')}): [{tools_str}]")
     
-    async def _create_single_node_agent(self, node: DAGNode) -> Agent:
-        """Create a real Agno agent for a specific node."""
+    async def _create_single_node_agent(self, node: DAGNode):
+        """Create a real Agno agent or team for a specific node."""
         # Simulate realistic agent creation time
         await asyncio.sleep(0.1)
 
         try:
-            # Use pre-generated profile from DAG node
-            profile = node.generated_system_prompt
-            
-            # Create tool instances for this agent
+            if node.node_type == "AGENT_TEAM":
+                # Create agno team
+                team = await self._create_team(node)
+                self.node_agents[node.id] = team
+                print(f"  Created Agno team: {node.id}")
+                return team
+            else:
+                # Create single agent (existing logic)
+                # Use pre-generated profile from DAG node
+                profile = node.generated_system_prompt
+
+                # Create tool instances for this agent
+                tools = []
+                for tool_name in node.tool_allowlist:
+                    if tool_name in self.tool_registry:
+                        tool_class = self.tool_registry[tool_name]
+                        tool_instance = tool_class()
+                        tools.append(tool_instance)
+                    else:
+                        logger.warning(f"Tool {tool_name} not found in registry")
+
+                # Map complexity levels to model configurations
+                model_configs = {
+                    "QUICK": {"temperature": 0.3, "max_tokens": 2000},
+                    "THOROUGH": {"temperature": 0.1, "max_tokens": 4000},
+                    "DEEP": {"temperature": 0.2, "max_tokens": 6000}
+                }
+
+                config = model_configs.get(node.agent_profile.complexity, model_configs["THOROUGH"])
+
+                # Create the real Agno agent
+                agent = Agent(
+                    model=Gemini(
+                        id="gemini-2.5-flash"
+                    ),
+                    tools=tools,
+                    description=profile,
+                    markdown=False,
+                    debug_mode=False,
+                    add_datetime_to_instructions=True,
+                    show_tool_calls=False
+                )
+
+                # Store profile type for display purposes
+                profile_display = f"{node.agent_profile.task_type}:{node.agent_profile.complexity}"
+                agent._profile_type = profile_display
+                agent._node_id = node.id
+
+                self.node_agents[node.id] = agent
+
+                print(f"  Created Agno agent: {node.id}")
+                return agent
+
+        except Exception as e:
+            logger.error(f"Failed to create agent for {node.id}: {e}")
+            raise e
+
+    async def _create_team(self, node: DAGNode) -> Team:
+        """Create an agno team from team config."""
+        team_config = node.team_config
+
+        # Create individual agents for the team
+        agents = []
+        for agent_config in team_config["agents"]:
+            # Create tools for this team member
             tools = []
-            for tool_name in node.tool_allowlist:
+            for tool_name in agent_config.get("tools", []):
                 if tool_name in self.tool_registry:
                     tool_class = self.tool_registry[tool_name]
                     tool_instance = tool_class()
                     tools.append(tool_instance)
-                else:
-                    logger.warning(f"Tool {tool_name} not found in registry")
-            
-            # Map complexity levels to model configurations
-            model_configs = {
-                "QUICK": {"temperature": 0.3, "max_tokens": 2000},
-                "THOROUGH": {"temperature": 0.1, "max_tokens": 4000},
-                "DEEP": {"temperature": 0.2, "max_tokens": 6000}
-            }
 
-            config = model_configs.get(node.agent_profile.complexity, model_configs["THOROUGH"])
-            
-            # Create the real Agno agent
-            # agent = Agent(
-            #     model=OpenAIChat(
-            #         id="gpt-4o",
-            #         temperature=config["temperature"],
-            #         max_tokens=config["max_tokens"],
-            #         top_p=0.9
-            #     ),
-            #     tools=tools,
-            #     description=profile,
-            #     markdown=False,
-            #     debug_mode=False,
-            #     add_datetime_to_instructions=True,
-            #     show_tool_calls=False
-            # )
-
+            # Create team member agent
             agent = Agent(
-                model=OpenAIChat(
-                    id="gpt-5-mini"
-                ),
+                name=agent_config["role"],
+                role=agent_config.get("description", f"Agent for {agent_config['role']}"),
+                model=Gemini(id="gemini-2.5-flash"),
                 tools=tools,
-                description=profile,
-                markdown=False,
-                debug_mode=False,
-                add_datetime_to_instructions=True,
-                show_tool_calls=False
+                debug_mode=False
             )
-            
-            # Store profile type for display purposes
-            profile_display = f"{node.agent_profile.task_type}:{node.agent_profile.complexity}"
-            agent._profile_type = profile_display
-            agent._node_id = node.id
-            
-            self.node_agents[node.id] = agent
-            
-            print(f"  Created Agno agent: {node.id}")
-            return agent
-            
-        except Exception as e:
-            logger.error(f"Failed to create agent for {node.id}: {e}")
-            raise e
+            agents.append(agent)
+
+        # Create the team
+        team = Team(
+            name=f"Team_{node.id}",
+            mode=team_config.get("collaboration_pattern", "collaborate"),
+            members=agents,
+            show_tool_calls=True,
+            debug_mode=False
+        )
+
+        # Store team info for display
+        team._profile_type = f"TEAM:{team_config.get('collaboration_pattern', 'collaborate')}"
+        team._node_id = node.id
+
+        return team
     
     async def _execute_dag_with_display(self, dag: DAG) -> Dict[str, ExecutionResult]:
         """Execute DAG with real Agno agents."""
@@ -195,8 +229,12 @@ class KernelAgent:
             # Show what's executing
             for node in ready_nodes:
                 deps = node.dependencies if node.dependencies else ["START"]
-                tools_str = ', '.join(node.tool_allowlist)
-                profile_str = f"{node.agent_profile.task_type}:{node.agent_profile.complexity}"
+                if node.node_type == "AGENT_TEAM":
+                    profile_str = f"TEAM:{node.team_config.get('collaboration_pattern', 'collaborate')}"
+                    tools_str = "team tools"
+                else:
+                    tools_str = ', '.join(node.tool_allowlist)
+                    profile_str = f"{node.agent_profile.task_type}:{node.agent_profile.complexity}"
                 print(f"  Starting: {node.id} ({profile_str}) [Tools: {tools_str}]")
                 if node.dependencies:
                     print(f"    Dependencies: {', '.join(deps)}")
@@ -298,9 +336,14 @@ class KernelAgent:
                     if latest_feedback.specific_issues:
                         print(f"Issues to Address: {latest_feedback.specific_issues}")
 
-                profile_str = f"{node.agent_profile.task_type}:{node.agent_profile.complexity}"
+                if node.node_type == "AGENT_TEAM":
+                    profile_str = f"TEAM:{node.team_config.get('collaboration_pattern', 'collaborate')}"
+                    tools_str = "team tools"
+                else:
+                    profile_str = f"{node.agent_profile.task_type}:{node.agent_profile.complexity}"
+                    tools_str = ', '.join(node.tool_allowlist)
                 print(f"Agent: {node.id} ({profile_str})")
-                print(f"Tools: {', '.join(node.tool_allowlist)}")
+                print(f"Tools: {tools_str}")
                 print("Output:")
                 # Show full output
                 output_preview = result_content
@@ -318,19 +361,27 @@ class KernelAgent:
                         if evaluation.is_accepted:
                             print("Judge ACCEPTED the output")
                             print(f"Judge Feedback: {evaluation.feedback}")
+
+                            # Create appropriate tags for langfuse based on node type
+                            if node.node_type == "AGENT_TEAM":
+                                task_tag = f"team_{node.team_config.get('collaboration_pattern', 'collaborate')}"
+                            else:
+                                task_tag = node.agent_profile.task_type
+
                             langfuse.update_current_trace(
                                 name=node.id,
                                 input=full_prompt,
                                 output=result_content,
-                                tags=["agent", node.agent_profile.task_type, "accepted"]
+                                tags=["agent", task_tag, "accepted"]
                             )
                             print("-" * 50)
+                            tools_used = node.tool_allowlist if node.node_type == "SINGLE_AGENT" else ["team_tools"]
                             return ExecutionResult(
                                 node_id=node.id,
                                 result=result_content,
                                 execution_time=time.time() - overall_start_time,
                                 agent_profile=profile_str,
-                                tools_used=node.tool_allowlist,
+                                tools_used=tools_used,
                                 success=True
                             )
                         else:
@@ -356,19 +407,26 @@ class KernelAgent:
                         print("No validation needed or final attempt")
 
                 # Final attempt or no validation needed - return result
+                # Create appropriate tags for langfuse based on node type
+                if node.node_type == "AGENT_TEAM":
+                    task_tag = f"team_{node.team_config.get('collaboration_pattern', 'collaborate')}"
+                else:
+                    task_tag = node.agent_profile.task_type
+
                 langfuse.update_current_trace(
                     name=node.id,
                     input=full_prompt,
                     output=result_content,
-                    tags=["agent", node.agent_profile.task_type, "final" if is_final_attempt else "no_validation"]
+                    tags=["agent", task_tag, "final" if is_final_attempt else "no_validation"]
                 )
                 print("-" * 50)
+                tools_used = node.tool_allowlist if node.node_type == "SINGLE_AGENT" else ["team_tools"]
                 return ExecutionResult(
                     node_id=node.id,
                     result=result_content,
                     execution_time=time.time() - overall_start_time,
                     agent_profile=profile_str,
-                    tools_used=node.tool_allowlist,
+                    tools_used=tools_used,
                     success=True
                 )
 
@@ -379,14 +437,19 @@ class KernelAgent:
 
                 if is_final_attempt:
                     # Final attempt failed - return error result
-                    profile_str = f"{node.agent_profile.task_type}:{node.agent_profile.complexity}"
+                    if node.node_type == "AGENT_TEAM":
+                        profile_str = f"TEAM:{node.team_config.get('collaboration_pattern', 'collaborate')}"
+                        tools_used = ["team_tools"]
+                    else:
+                        profile_str = f"{node.agent_profile.task_type}:{node.agent_profile.complexity}"
+                        tools_used = node.tool_allowlist
                     print("-" * 50)
                     return ExecutionResult(
                         node_id=node.id,
                         result="",
                         execution_time=time.time() - overall_start_time,
                         agent_profile=profile_str,
-                        tools_used=node.tool_allowlist,
+                        tools_used=tools_used,
                         success=False,
                         error=str(e)
                     )

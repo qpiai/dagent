@@ -35,9 +35,29 @@ class AgentProfile(BaseModel):
 class SubtaskNode(BaseModel):
     """Defines a single node in the execution DAG."""
     task_description: str
-    agent_profile: AgentProfile
-    tool_allowlist: List[str]
+    node_type: Literal["SINGLE_AGENT", "AGENT_TEAM"] = "SINGLE_AGENT"
+
+    # Single agent fields
+    agent_profile: Optional[AgentProfile] = None
+    tool_allowlist: Optional[List[str]] = None
+
+    # Team fields
+    team_config: Optional[Dict] = None
+
     dependencies: List[str] = []
+
+    @classmethod
+    def model_validate(cls, data):
+        """Custom validation to ensure either single agent or team fields are present"""
+        if isinstance(data, dict):
+            node_type = data.get('node_type', 'SINGLE_AGENT')
+            if node_type == 'SINGLE_AGENT':
+                if 'agent_profile' not in data or 'tool_allowlist' not in data:
+                    raise ValueError("Single agent nodes require agent_profile and tool_allowlist")
+            elif node_type == 'AGENT_TEAM':
+                if 'team_config' not in data:
+                    raise ValueError("Team nodes require team_config")
+        return super().model_validate(data)
 
 
 class Plan(BaseModel):
@@ -53,35 +73,35 @@ class Planner:
     
     @property
     def agent(self):
-        if self._agent is None:
-            self._agent = Agent(
-                model=OpenAIChat(
-                    id="gpt-4o"),
-                description=PLANNER_SYSTEM_PROMPT,
-                markdown=False,
-                debug_mode=False,
-                add_datetime_to_instructions=True,
-                exponential_backoff=True,
-                delay_between_retries=2,
-            )
-        return self._agent
-        
         # if self._agent is None:
         #     self._agent = Agent(
-        #     model = Gemini(
-        #         id="gemini-2.5-flash",
-        #         temperature=0.3,
-        #         ),
+        #         model=OpenAIChat(
+        #             id="gpt-4o"),
         #         description=PLANNER_SYSTEM_PROMPT,
         #         markdown=False,
         #         debug_mode=False,
         #         add_datetime_to_instructions=True,
-        #         exponential_backoff = True,
+        #         exponential_backoff=True,
         #         delay_between_retries=2,
-        #         # response_model=Plan,
-
-        # )
+        #     )
         # return self._agent
+        
+        if self._agent is None:
+            self._agent = Agent(
+            model = Gemini(
+                id="gemini-2.5-flash",
+                temperature=0.3,
+                ),
+                description=PLANNER_SYSTEM_PROMPT,
+                markdown=False,
+                debug_mode=False,
+                add_datetime_to_instructions=True,
+                exponential_backoff = True,
+                delay_between_retries=2,
+                # response_model=Plan,
+
+        )
+        return self._agent
 
     @observe()
     async def create_plan(
@@ -90,8 +110,7 @@ class Planner:
         available_profiles: List[Dict],
         available_tools: List[Dict],
         feedback: Optional[Dict] = None,
-        previous_plan: Optional[Plan] = None,
-        iteration: int = 1
+        previous_plan: Optional[Plan] = None
     ) -> Plan:
         """Creates a plan and returns a validated Pydantic Plan object"""
 
@@ -131,7 +150,7 @@ Based on the feedback above, you should modify and improve this existing plan ra
          
         prompt = f"""
 ---
-## CURRENT TASK BRIEFING (ITERATION #{iteration}) ##
+## CURRENT TASK BRIEFING ##
 
 **1. User Query:**
 "{user_query}"
@@ -148,7 +167,23 @@ Based on the feedback above, you should modify and improve this existing plan ra
 
 {previous_plan_block}
 
-**4. REQUIRED OUTPUT FORMAT**
+**4. AGENT VS TEAM DECISION LOGIC**
+For each subtask, decide whether to use a single agent or a team:
+
+**Use SINGLE AGENT for:**
+- Simple data retrieval tasks (web search, API calls)
+- Basic analysis with clear inputs/outputs
+- Straightforward calculations or transformations
+- Direct aggregation of existing data
+
+**Use AGENT TEAM for:**
+- Complex research requiring multiple perspectives
+- Creative tasks needing brainstorming
+- Quality assurance requiring validation
+- Multi-step analysis with iterative refinement
+- Tasks where domain expertise from different angles is beneficial
+
+**5. REQUIRED OUTPUT FORMAT**
 You MUST respond with ONLY a valid JSON object following this schema structure:
 
 ```json
@@ -157,6 +192,7 @@ You MUST respond with ONLY a valid JSON object following this schema structure:
   "subtasks": {{
     "task_id_1": {{
       "task_description": "Specific atomic task description",
+      "node_type": "SINGLE_AGENT",
       "agent_profile": {{
         "task_type": "SEARCH|THINK|AGGREGATE",
         "complexity": "QUICK|THOROUGH|DEEP",
@@ -167,14 +203,23 @@ You MUST respond with ONLY a valid JSON object following this schema structure:
       "dependencies": []
     }},
     "task_id_2": {{
-      "task_description": "Another specific atomic task description",
-      "agent_profile": {{
-        "task_type": "SEARCH|THINK|AGGREGATE",
-        "complexity": "QUICK|THOROUGH|DEEP",
-        "output_format": "DATA|ANALYSIS|REPORT",
-        "reasoning_style": "DIRECT|ANALYTICAL|CREATIVE"
+      "task_description": "Complex analysis requiring multiple perspectives",
+      "node_type": "AGENT_TEAM",
+      "team_config": {{
+        "collaboration_pattern": "collaborate",
+        "agents": [
+          {{
+            "role": "data_researcher",
+            "description": "Focus on gathering raw data",
+            "tools": ["WebSearchTools"]
+          }},
+          {{
+            "role": "analyst",
+            "description": "Analyze and interpret data",
+            "tools": []
+          }}
+        ]
       }},
-      "tool_allowlist": ["ToolName"],
       "dependencies": ["task_id_1"]
     }}
   }},

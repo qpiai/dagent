@@ -45,8 +45,8 @@ class Judge:
     def agent(self):
         if self._agent is None:
             self._agent = Agent(
-                model=OpenAIChat(
-                    id="gpt-5-mini"  
+                model=Gemini(
+                    id="gemini-2.5-flash"
                 ),
                 description="""You are a quality judge that evaluates task outputs and provides detailed feedback.
 

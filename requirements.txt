@@ -1,0 +1,31 @@
+# Core framework dependencies
+agno>=0.1.0              # Agentic framework for agents and teams
+pydantic>=2.0.0          # Data validation and type hints
+
+# AI/ML model providers
+openai>=1.0.0            # OpenAI API client (for GPT models)
+google-generativeai      # Google Gemini API client
+
+# Data processing and analysis
+pandas>=1.5.0            # Data manipulation and analysis
+numpy>=1.24.0            # Numerical computing
+yfinance>=0.2.0          # Yahoo Finance data
+
+# Environment and configuration
+python-dotenv>=1.0.0     # Environment variable management
+
+# Tracing and observability
+langfuse>=2.0.0          # LLM tracing and observability
+openlit                  # Additional telemetry (optional)
+
+# Web search capabilities
+exa-py                   # Exa search API (used by agno.tools.exa)
+
+# Standard library extensions (may be needed)
+typing-extensions>=4.0.0 # Extended typing support for older Python versions
+
+# Development dependencies (optional - uncomment if needed)
+# pytest>=7.0.0          # Testing framework
+# black>=22.0.0          # Code formatter
+# flake8>=6.0.0          # Code linter
+# mypy>=1.0.0            # Static type checker

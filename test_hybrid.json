@@ -1,0 +1,56 @@
+{
+  "query": "Research the best programming framework for building AI applications and provide a comprehensive recommendation",
+  "planning_rationale": "This task requires both simple data gathering and complex analysis with multiple perspectives. I'll use single agents for data collection and a team for the final analysis and recommendation.",
+  "expected_final_output": "A comprehensive recommendation for the best programming framework for AI applications",
+  "subtasks": {
+    "search_ai_frameworks": {
+      "task_description": "Search for popular AI/ML programming frameworks and libraries",
+      "node_type": "SINGLE_AGENT",
+      "agent_profile": {
+        "task_type": "SEARCH",
+        "complexity": "QUICK",
+        "output_format": "DATA",
+        "reasoning_style": "DIRECT"
+      },
+      "tool_allowlist": ["WebSearchTools"],
+      "dependencies": []
+    },
+    "search_performance_benchmarks": {
+      "task_description": "Find performance benchmarks and comparisons of AI frameworks",
+      "node_type": "SINGLE_AGENT",
+      "agent_profile": {
+        "task_type": "SEARCH",
+        "complexity": "THOROUGH",
+        "output_format": "DATA",
+        "reasoning_style": "ANALYTICAL"
+      },
+      "tool_allowlist": ["WebSearchTools"],
+      "dependencies": []
+    },
+    "team_analysis_recommendation": {
+      "task_description": "Analyze framework data from multiple perspectives and create a comprehensive recommendation",
+      "node_type": "AGENT_TEAM",
+      "team_config": {
+        "collaboration_pattern": "collaborate",
+        "agents": [
+          {
+            "role": "technical_analyst",
+            "description": "Evaluate technical aspects like performance, scalability, and ease of use",
+            "tools": []
+          },
+          {
+            "role": "ecosystem_expert",
+            "description": "Assess community support, documentation, and ecosystem maturity",
+            "tools": []
+          },
+          {
+            "role": "decision_synthesizer",
+            "description": "Synthesize different perspectives into a final recommendation",
+            "tools": []
+          }
+        ]
+      },
+      "dependencies": ["search_ai_frameworks", "search_performance_benchmarks"]
+    }
+  }
+}

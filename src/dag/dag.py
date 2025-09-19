@@ -1,5 +1,5 @@
-from typing import Dict, List, Set
-from dataclasses import dataclass
+from typing import Dict, List, Set, Optional, Literal
+from dataclasses import dataclass, field
 import asyncio
 
 
@@ -8,10 +8,17 @@ class DAGNode:
     """Represents a single node in the execution DAG."""
     id: str
     task_description: str
-    agent_profile: str
-    generated_system_prompt: str
-    tool_allowlist: List[str]
-    dependencies: List[str]
+    node_type: Literal["SINGLE_AGENT", "AGENT_TEAM"] = "SINGLE_AGENT"
+
+    # Single agent fields
+    agent_profile: Optional[str] = None
+    generated_system_prompt: Optional[str] = None
+    tool_allowlist: Optional[List[str]] = None
+
+    # Team fields
+    team_config: Optional[Dict] = None
+
+    dependencies: List[str] = field(default_factory=list)
     max_retries: int = 2
     needs_validation: bool = True
 
@@ -108,6 +115,30 @@ class DAG:
         return False
 
 
+def _extract_node_data(subtask_data):
+    """Extract data consistently from dict or SubtaskNode object"""
+    if hasattr(subtask_data, 'task_description'):
+        # SubtaskNode object
+        return {
+            'task_description': subtask_data.task_description,
+            'node_type': getattr(subtask_data, 'node_type', 'SINGLE_AGENT'),
+            'agent_profile': subtask_data.agent_profile,
+            'tool_allowlist': subtask_data.tool_allowlist,
+            'team_config': getattr(subtask_data, 'team_config', None),
+            'dependencies': subtask_data.dependencies or []
+        }
+    else:
+        # Dict format - ensure defaults
+        return {
+            'task_description': subtask_data['task_description'],
+            'node_type': subtask_data.get('node_type', 'SINGLE_AGENT'),
+            'agent_profile': subtask_data.get('agent_profile'),
+            'tool_allowlist': subtask_data.get('tool_allowlist'),
+            'team_config': subtask_data.get('team_config'),
+            'dependencies': subtask_data.get('dependencies', [])
+        }
+
+
 async def build_dag_from_plan(plan) -> DAG:
     """
     Build a DAG from planner output (Plan object or dict) with parallel profile generation.
@@ -132,48 +163,49 @@ async def build_dag_from_plan(plan) -> DAG:
     from kernel.profiles import ProfileGenerator
     profile_generator = ProfileGenerator()
 
-    # Generate all profiles in parallel
+    # Generate profiles for single agent nodes only
     profile_tasks = {}
     for task_id, subtask_data in subtasks.items():
-        if hasattr(subtask_data, 'task_description'):
-            # SubtaskNode object
-            task_desc = subtask_data.task_description
-            agent_prof = subtask_data.agent_profile
-            tools = subtask_data.tool_allowlist
-        else:
-            # Dict format
-            task_desc = subtask_data['task_description']
-            agent_prof = subtask_data['agent_profile']
-            tools = subtask_data['tool_allowlist']
+        data = _extract_node_data(subtask_data)
 
-        dependencies = subtask_data.dependencies if hasattr(subtask_data, 'dependencies') else subtask_data.get('dependencies', [])
-        profile_tasks[task_id] = profile_generator.generate_profile(agent_prof, task_desc, tools, dependencies)
+        if data['node_type'] == 'SINGLE_AGENT':
+            profile_tasks[task_id] = profile_generator.generate_profile(
+                data['agent_profile'],
+                data['task_description'],
+                data['tool_allowlist'],
+                data['dependencies']
+            )
 
-    # Wait for all profiles to be generated
-    profile_results = await asyncio.gather(*profile_tasks.values())
-    generated_profiles = dict(zip(profile_tasks.keys(), profile_results))
+    # Wait for all profiles to be generated (only for single agent nodes)
+    if profile_tasks:
+        profile_results = await asyncio.gather(*profile_tasks.values())
+        generated_profiles = dict(zip(profile_tasks.keys(), profile_results))
+    else:
+        generated_profiles = {}
 
     # Create DAG nodes with generated profiles
     for task_id, subtask_data in subtasks.items():
-        if hasattr(subtask_data, 'task_description'):
-            # SubtaskNode object
+        data = _extract_node_data(subtask_data)
+
+        if data['node_type'] == 'AGENT_TEAM':
+            # Team node
             node = DAGNode(
                 id=task_id,
-                task_description=subtask_data.task_description,
-                agent_profile=subtask_data.agent_profile,
-                generated_system_prompt=generated_profiles[task_id],
-                tool_allowlist=subtask_data.tool_allowlist,
-                dependencies=subtask_data.dependencies or []
+                task_description=data['task_description'],
+                node_type="AGENT_TEAM",
+                team_config=data['team_config'],
+                dependencies=data['dependencies']
             )
         else:
-            # Dict format
+            # Single agent node
             node = DAGNode(
                 id=task_id,
-                task_description=subtask_data['task_description'],
-                agent_profile=subtask_data['agent_profile'],
+                task_description=data['task_description'],
+                node_type="SINGLE_AGENT",
+                agent_profile=data['agent_profile'],
                 generated_system_prompt=generated_profiles[task_id],
-                tool_allowlist=subtask_data['tool_allowlist'],
-                dependencies=subtask_data.get('dependencies', [])
+                tool_allowlist=data['tool_allowlist'],
+                dependencies=data['dependencies']
             )
         dag.add_node(node)
 
