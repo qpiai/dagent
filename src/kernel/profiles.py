@@ -6,11 +6,13 @@ from planner.planner import AgentProfile
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.models.google import Gemini
+from .prompts import PROFILE_GENERATOR_SYSTEM_PROMPT, PROFILE_GENERATOR_TASK_PROMPT
 
 # Import centralized tracing
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils import get_model
 from tracing import langfuse, observe
 
 logger = logging.getLogger(__name__)
@@ -28,8 +30,8 @@ class ProfileGenerator:
         # )
 
         self._llm_agent = Agent(
-            model=OpenAIChat(id="gpt-5-mini"),
-            description="You are a system prompt generator for AI agents. Generate clear, focused system prompts based on agent profiles and tasks.",
+            model=get_model(),
+            description=PROFILE_GENERATOR_SYSTEM_PROMPT,
             markdown=False,
             debug_mode=False
         )
@@ -56,29 +58,19 @@ class ProfileGenerator:
         # Build dependency context
         dependency_context = self._get_dependency_context(dependencies, agent_profile.task_type)
 
-        prompt = f"""You are an AI agent operating within a DAG (Directed Acyclic Graph) workflow system. Generate a focused system prompt for this agent:
-
-WORKFLOW CONTEXT:
-- You are part of a coordinated multi-agent workflow
-- Your role: {agent_profile.task_type} ({self._get_task_type_description(agent_profile.task_type)})
-- Complexity level: {agent_profile.complexity} ({self._get_complexity_description(agent_profile.complexity)})
-- Expected output: {agent_profile.output_format} ({self._get_output_format_description(agent_profile.output_format)})
-- Reasoning approach: {agent_profile.reasoning_style} ({self._get_reasoning_style_description(agent_profile.reasoning_style)})
-
-SPECIFIC TASK: {task_description}
-
-{dependency_context}
-
-AVAILABLE TOOLS:
-{tool_descriptions}
-
-Generate a clear, direct system prompt that:
-1. Establishes the agent's role in the workflow
-2. Provides clear task execution instructions
-3. Emphasizes coordination with other agents in the DAG
-4. Includes tool usage guidance
-
-Keep it concise and actionable."""
+        prompt = PROFILE_GENERATOR_TASK_PROMPT.format(
+            task_type=agent_profile.task_type,
+            task_type_description=self._get_task_type_description(agent_profile.task_type),
+            complexity=agent_profile.complexity,
+            complexity_description=self._get_complexity_description(agent_profile.complexity),
+            output_format=agent_profile.output_format,
+            output_format_description=self._get_output_format_description(agent_profile.output_format),
+            reasoning_style=agent_profile.reasoning_style,
+            reasoning_style_description=self._get_reasoning_style_description(agent_profile.reasoning_style),
+            task_description=task_description,
+            tools_description=tool_descriptions,
+            dependency_context=dependency_context
+        )
 
         response = await self._llm_agent.arun(prompt)
         generated_profile = response.content.strip()
@@ -92,13 +84,55 @@ Keep it concise and actionable."""
 
         logger.info(f"Profile generated successfully for {profile_str}")
         return generated_profile
+
+    @observe()
+    async def generate_team_profile(self, task_description: str, team_config: dict) -> str:
+        """Generate system prompt for team coordination."""
+        # Build member descriptions
+        member_descriptions = []
+        for member in team_config["agents"]:
+            tools = ", ".join(member.get("tools", ["none"]))
+            member_descriptions.append(f"- {member['role']}: {member['description']} (Tools: {tools})")
+
+        members_text = "\n".join(member_descriptions)
+        collaboration_pattern = team_config.get("collaboration_pattern", "collaborate")
+
+        prompt = f"""Generate a system prompt for a team coordinator managing this task:
+
+Task: {task_description}
+Collaboration Pattern: {collaboration_pattern}
+
+Team Members:
+{members_text}
+
+The system prompt should:
+1. Define the coordinator's role in managing team collaboration
+2. Explain how to coordinate the {collaboration_pattern} pattern
+3. Specify how to delegate work to appropriate team members
+4. Be concise (1-2 paragraphs)
+
+Your response should be ONLY the system prompt text."""
+
+        response = await self._llm_agent.arun(prompt)
+        generated_profile = response.content.strip()
+
+        langfuse.update_current_trace(
+            name=f"generate_team_profile_{collaboration_pattern}",
+            input=prompt,
+            output=generated_profile,
+            tags=["profile_generation", "team"]
+        )
+
+        logger.info(f"Team profile generated for {collaboration_pattern} pattern")
+        return generated_profile
     
     def _get_task_type_description(self, task_type: str) -> str:
         """Get description for task type."""
         descriptions = {
             "SEARCH": "Information retrieval, data gathering, web search, API calls",
             "THINK": "Analysis, reasoning, processing existing data, decision making",
-            "AGGREGATE": "Synthesis, combining results, final report generation"
+            "AGGREGATE": "Synthesis, combining results, final report generation",
+            "ACT": "Environment modifications, file operations, external actions"
         }
         return descriptions.get(task_type, "General task execution")
 
@@ -133,7 +167,8 @@ Keep it concise and actionable."""
         """Get detailed descriptions for tools."""
         tool_info = {
             "YFinanceTools": "Financial data from Yahoo Finance - get stock prices, company info, financial statements, analyst recommendations, price history",
-            "WebSearchTools": "Web search using Exa API - search general web content, recent news articles, financial news, get news summaries"
+            "WebSearchTools": "Web search using Exa API - search general web content, recent news articles, financial news, get news summaries",
+            "FileEditor": "File operations - create, read, write, modify files, save content, create scripts, manage file system"
         }
 
         if not tools:
@@ -162,6 +197,8 @@ Keep it concise and actionable."""
             dep_context += " Analyze and process the provided information."
         elif task_type == "AGGREGATE":
             dep_context += " Synthesize all inputs into a comprehensive final output."
+        elif task_type == "ACT":
+            dep_context += " Use this context to inform your actions and file operations."
 
         return dep_context
 

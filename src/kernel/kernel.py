@@ -12,7 +12,7 @@ from agno.models.openai import OpenAIChat
 from agno.models.google import Gemini
 
 from dag import DAG, DAGNode
-from tools import YFinanceTools, WebSearchTools
+from tools import YFinanceTools, WebSearchTools, FileEditorTools
 from .profiles import ProfileGenerator
 from .judge import Judge, JudgeEvaluation
 
@@ -20,6 +20,7 @@ from .judge import Judge, JudgeEvaluation
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils import get_model
 from tracing import langfuse, observe
 
 logger = logging.getLogger(__name__)
@@ -47,12 +48,18 @@ class KernelAgent:
         self.profile_generator = ProfileGenerator()
         self.tool_registry = self._create_tool_registry()
         self.judge = Judge()
+        self.global_context = {
+            "modified_files": [],
+            "changes_log": [],
+            "current_version": 1
+        }
         
     def _create_tool_registry(self) -> Dict[str, Any]:
         """Create registry of available tool classes."""
         return {
             'YFinanceTools': YFinanceTools,
-            'WebSearchTools': WebSearchTools
+            'WebSearchTools': WebSearchTools,
+            'FileEditor': FileEditorTools
         }
     
     async def execute_workflow(self, dag: DAG) -> Dict[str, ExecutionResult]:
@@ -145,15 +152,11 @@ class KernelAgent:
 
                 # Create the real Agno agent
                 agent = Agent(
-                    model=Gemini(
-                        id="gemini-2.5-flash"
-                    ),
+                    model=get_model(temperature=0.5),
                     tools=tools,
                     description=profile,
                     markdown=False,
-                    debug_mode=False,
-                    add_datetime_to_instructions=True,
-                    show_tool_calls=False
+                    debug_mode=False
                 )
 
                 # Store profile type for display purposes
@@ -189,18 +192,18 @@ class KernelAgent:
             agent = Agent(
                 name=agent_config["role"],
                 role=agent_config.get("description", f"Agent for {agent_config['role']}"),
-                model=Gemini(id="gemini-2.5-flash"),
+                model=get_model(),
                 tools=tools,
                 debug_mode=False
             )
             agents.append(agent)
 
-        # Create the team
+        # Create the team with generated system prompt
         team = Team(
             name=f"Team_{node.id}",
             mode=team_config.get("collaboration_pattern", "collaborate"),
             members=agents,
-            show_tool_calls=True,
+            instructions=node.generated_system_prompt,  # Use pre-generated team prompt
             debug_mode=False
         )
 
@@ -284,6 +287,17 @@ class KernelAgent:
                 # Create the prompt with context and task
                 prompt_parts = []
 
+                # Add global context (environment state)
+                if self.global_context["changes_log"]:
+                    prompt_parts.append("Environment State:")
+                    prompt_parts.append(f"Current Version: {self.global_context['current_version']}")
+                    if self.global_context["modified_files"]:
+                        prompt_parts.append(f"Modified Files: {', '.join(self.global_context['modified_files'])}")
+                    recent_changes = self.global_context["changes_log"][-3:]  # Show last 3 changes
+                    for change in recent_changes:
+                        prompt_parts.append(f"  - {change['type']}: {change.get('file', change.get('description', 'N/A'))}")
+                    prompt_parts.append("")
+
                 if context:
                     prompt_parts.append("Context from previous tasks:")
                     prompt_parts.append(context)
@@ -313,6 +327,13 @@ class KernelAgent:
 
                 # Extract result content
                 result_content = response.content if hasattr(response, 'content') else str(response)
+
+                # Update global context for ACT operations
+                if (node.node_type == "SINGLE_AGENT" and
+                    hasattr(node, 'agent_profile') and
+                    node.agent_profile and
+                    node.agent_profile.task_type == "ACT"):
+                    self._update_global_context_for_act(node, result_content)
 
                 execution_time = time.time() - start_time
 
@@ -457,11 +478,72 @@ class KernelAgent:
                     print(f"Retrying after error...")
                     continue
     
+    def _update_global_context_for_act(self, node: DAGNode, result_content: str):
+        """Update global context after ACT operations using tool-based detection."""
+        import re
+        from datetime import datetime
+
+        # Option 2: Tool-based detection - simple and reliable
+        modified_files = []
+
+        # Check if FileEditor tools were used successfully
+        if ("FileEditor" in node.tool_allowlist and
+            result_content and
+            "error" not in result_content.lower() and
+            "failed" not in result_content.lower()):
+
+            # Extract filename from task description (more reliable than parsing output)
+            filename_patterns = [
+                r"['\"]([^'\"]+\.(py|txt|json|csv|md|yaml|yml|js|ts|html|css))['\"]",  # quoted filenames
+                r"named?\s+['\"]?([^'\"\s]+\.(py|txt|json|csv|md|yaml|yml|js|ts|html|css))['\"]?",  # "named X" or "name X"
+                r"file\s+['\"]?([^'\"\s]+\.(py|txt|json|csv|md|yaml|yml|js|ts|html|css))['\"]?",  # "file X"
+                r"([a-zA-Z0-9_-]+\.(py|txt|json|csv|md|yaml|yml|js|ts|html|css))"  # any filename with extension
+            ]
+
+            for pattern in filename_patterns:
+                matches = re.findall(pattern, node.task_description, re.IGNORECASE)
+                if matches:
+                    # Extract just the filename (first group for some patterns, full match for others)
+                    if isinstance(matches[0], tuple):
+                        modified_files.extend([match[0] for match in matches])
+                    else:
+                        modified_files.extend(matches)
+                    break  # Use first matching pattern
+
+
+        # Update global context if files were detected
+        if modified_files:
+            for file_path in modified_files:
+                if file_path not in self.global_context["modified_files"]:
+                    self.global_context["modified_files"].append(file_path)
+
+                # Add to change log
+                self.global_context["changes_log"].append({
+                    "type": "file_operation",
+                    "file": file_path,
+                    "node_id": node.id,
+                    "timestamp": datetime.now().isoformat()
+                })
+
+            # Increment version
+            self.global_context["current_version"] += 1
+
+            logger.info(f"Updated global context - Version {self.global_context['current_version']}, Modified files: {modified_files}")
+
+            # Print global context for debugging
+            print(f"\n🌐 GLOBAL CONTEXT UPDATED:")
+            print(f"   Version: {self.global_context['current_version']}")
+            print(f"   Modified Files: {self.global_context['modified_files']}")
+            print(f"   Recent Changes:")
+            for change in self.global_context['changes_log'][-3:]:
+                print(f"     - {change['type']}: {change.get('file', 'N/A')} (by {change.get('node_id', 'unknown')})")
+            print()
+
     def _build_context_for_node(self, node: DAGNode, completed: Dict[str, ExecutionResult]) -> str:
         """Build context from dependency outputs."""
         if not node.dependencies:
             return ""
-        
+
         context_parts = []
         for dep_id in node.dependencies:
             if dep_id in completed:
@@ -471,7 +553,7 @@ class KernelAgent:
                     context_parts.append(f"Results from {dep_id}:\n{dep_result.result}")
                 else:
                     context_parts.append(f"Task {dep_id} failed: {dep_result.error}")
-        
+
         return "\n\n".join(context_parts)
 
 

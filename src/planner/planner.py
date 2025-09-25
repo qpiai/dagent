@@ -22,11 +22,12 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils import get_model
 from tracing import langfuse, observe
 
 class AgentProfile(BaseModel):
     """Agent profile configuration with semantic fields."""
-    task_type: Literal["SEARCH", "THINK", "AGGREGATE"]
+    task_type: Literal["SEARCH", "THINK", "AGGREGATE", "ACT"]
     complexity: Literal["QUICK", "THOROUGH", "DEEP"]
     output_format: Literal["DATA", "ANALYSIS", "REPORT"]
     reasoning_style: Literal["DIRECT", "ANALYTICAL", "CREATIVE"]
@@ -88,15 +89,11 @@ class Planner:
         
         if self._agent is None:
             self._agent = Agent(
-            model = Gemini(
-                id="gemini-2.5-flash",
-                temperature=0.3,
-                ),
+                model=get_model(temperature=0.3),
                 description=PLANNER_SYSTEM_PROMPT,
                 markdown=False,
                 debug_mode=False,
-                add_datetime_to_instructions=True,
-                exponential_backoff = True,
+                exponential_backoff=True,
                 delay_between_retries=2,
                 # response_model=Plan,
 
@@ -175,6 +172,7 @@ For each subtask, decide whether to use a single agent or a team:
 - Basic analysis with clear inputs/outputs
 - Straightforward calculations or transformations
 - Direct aggregation of existing data
+- File editing and environment modifications (ACT tasks)
 
 **Use AGENT TEAM for:**
 - Complex research requiring multiple perspectives
@@ -182,6 +180,12 @@ For each subtask, decide whether to use a single agent or a team:
 - Quality assurance requiring validation
 - Multi-step analysis with iterative refinement
 - Tasks where domain expertise from different angles is beneficial
+
+**Task Type Guidelines:**
+- **SEARCH**: Use WebSearchTools for gathering external data
+- **THINK**: Pure analysis, no tools needed typically
+- **AGGREGATE**: Combine previous results, minimal tools
+- **ACT**: Environment modifications - use FileEditor for file operations
 
 **5. REQUIRED OUTPUT FORMAT**
 You MUST respond with ONLY a valid JSON object following this schema structure:
@@ -194,7 +198,7 @@ You MUST respond with ONLY a valid JSON object following this schema structure:
       "task_description": "Specific atomic task description",
       "node_type": "SINGLE_AGENT",
       "agent_profile": {{
-        "task_type": "SEARCH|THINK|AGGREGATE",
+        "task_type": "SEARCH|THINK|AGGREGATE|ACT",
         "complexity": "QUICK|THOROUGH|DEEP",
         "output_format": "DATA|ANALYSIS|REPORT",
         "reasoning_style": "DIRECT|ANALYTICAL|CREATIVE"
@@ -268,7 +272,6 @@ Please generate the optimized JSON plan based on this briefing and your core ins
             
             plan_dict = json.loads(json_text)
             validated_plan = Plan(**plan_dict)
-            print(f"Plan type: {type(validated_plan)}")
 
             langfuse.update_current_trace(
                 name="create_plan",

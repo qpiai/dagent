@@ -32,7 +32,7 @@ Before creating any plan, analyze the query to determine its characteristics:
 - **Uncertainty Management**: Handle ambiguous results with explicit confidence assessment
 
 ## 4. Tool Selection Guidelines
-The system uses only TWO tools. Select the appropriate tool(s) based on the task requirements:
+The system has THREE tools. Select the appropriate tool(s) based on the task requirements:
 
 ### Available Tools:
 - **YFinanceTools**: For basic financial data from Yahoo Finance
@@ -41,13 +41,17 @@ The system uses only TWO tools. Select the appropriate tool(s) based on the task
 - **WebSearchTools**: For web content using Exa API
   - *Can do*: News articles, earnings transcripts, analyst reports, press releases, market analysis, general web information on ANY topic
   - *Cannot do*: Real-time financial data, detailed financial calculations
+- **FileEditor**: For file operations and environment modifications
+  - *Can do*: Create, read, write, modify files, save content, create scripts, manage file system
+  - *Cannot do*: Network operations, database connections, complex system administration
 
 ### Tool Selection Rules:
 1. **YFinanceTools for Basic Financial Data**: Use for current stock prices, basic company metrics, and high-level financial information available in Yahoo Finance's summary data
 2. **WebSearchTools for Information Retrieval**: Use for earnings transcripts, detailed analysis, news, sentiment, and ANY information not available through basic Yahoo Finance data
-3. **Both Tools if Needed**: Some tasks may require both basic financial data and web context
-4. **Final Report Tasks**: For synthesis tasks, use no tools - the LLM generates reports directly from dependency outputs
-5. **Non-Financial Queries**: WebSearchTools handles ANY general knowledge questions beyond finance
+3. **FileEditor for Environment Actions**: Use for creating files, saving content, writing scripts, modifying configurations - any task that changes the environment
+4. **Combined Tools if Needed**: Some tasks may require multiple tools (e.g., search for content, then save to file)
+5. **Final Report Tasks**: For synthesis tasks, use no tools - the LLM generates reports directly from dependency outputs
+6. **Non-Financial Queries**: WebSearchTools handles ANY general knowledge questions beyond finance
 
 ### Search Strategy Guidelines:
 When designing search tasks, treat the system as a professional information retrieval system:
@@ -82,6 +86,10 @@ When designing search tasks, treat the system as a professional information retr
 **Financial Data Tasks:**
 - **Good**: "Fetch [COMPANY] current stock price and basic financial metrics from Yahoo Finance. Include market cap, P/E ratio, and recent price changes."
 - **Bad**: "Get financial data" (not specific about what data or limitations)
+
+**File Operations (ACT Tasks):**
+- **Good**: "Create a Python script file named 'hello.py' with the content `print('Hello, World!')` using FileEditor tools."
+- **Bad**: "Save some code" (no specific file, content, or format specified)
 
 ## 5. Standard Operating Procedure (SOP) for Plan Generation
 You must follow this thought process meticulously for every request:
@@ -123,6 +131,7 @@ Apply recursive atomic decomposition strategy inspired by ROMA:
             - `SEARCH`: Information retrieval, data gathering, web search, API calls
             - `THINK`: Analysis, reasoning, processing existing data, decision making
             - `AGGREGATE`: Synthesis, combining results, final report generation
+            - `ACT`: Environment modifications, file operations, external actions
         - **`complexity`**: How much processing power does this task require?
             - `QUICK`: Simple, straightforward tasks with minimal reasoning
             - `THOROUGH`: Systematic analysis requiring detailed reasoning and validation
@@ -148,6 +157,7 @@ Apply recursive atomic decomposition strategy inspired by ROMA:
 - **Complex Analysis**: `THINK + THOROUGH + ANALYSIS + ANALYTICAL` (detailed reasoning)
 - **Final Reports**: `AGGREGATE + DEEP + REPORT + CREATIVE` (comprehensive synthesis)
 - **Quick Calculations**: `THINK + QUICK + REPORT + DIRECT` (straightforward computation)
+- **File Operations**: `ACT + QUICK + REPORT + DIRECT` (create/modify files, save content)
 
     - **`tool_allowlist`**: Apply the Tool Selection Guidelines above. Be specific and minimalist based on the task's actual requirements.
 
@@ -169,6 +179,7 @@ AVAILABLE_TOOLS = [
     # Data Acquisition Tools
     {"id": "YFinanceTools", "description": "Fetch stock prices, financial statements, market data, trading volumes, and company fundamentals from Yahoo Finance."},
     {"id": "WebSearchTools", "description": "Search the web for news articles, press releases, earnings transcripts, and market analysis using DuckDuckGo."},
+    {"id": "FileEditor", "description": "Create, read, write, modify and manage files. Use for file operations, saving content, creating scripts, and environment modifications."},
 ]
 
 # Complex test scenarios that require multiple tools
@@ -213,6 +224,7 @@ AVAILABLE_AGENT_PROFILES = [
         {"task_type": "SEARCH", "description": "Search for information, retrieve data, find content"},
         {"task_type": "THINK", "description": "Analyze data, process information, reason through problems"},
         {"task_type": "AGGREGATE", "description": "Combine results, synthesize information, create final outputs"},
+        {"task_type": "ACT", "description": "Modify environment, create/edit files, perform external actions"},
         {"complexity": "QUICK", "description": "Fast, efficient execution with minimal processing"},
         {"complexity": "THOROUGH", "description": "Systematic analysis with detailed reasoning"},
         {"complexity": "DEEP", "description": "Comprehensive multi-angle analysis"},

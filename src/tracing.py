@@ -13,19 +13,19 @@ logging.getLogger("opentelemetry").setLevel(logging.WARNING)
 
 # Initialize tracing once for the entire application
 try:
-    import openlit
+    # import openlit  # Temporarily disabled for cleaner output
     from langfuse import get_client, observe
 
     # Initialize Langfuse client
     langfuse = get_client()
 
-    # Initialize OpenLIT instrumentation globally with console output disabled
-    openlit.init(
-        tracer=langfuse._otel_tracer,
-        disable_batch=True,
-        collect_gpu_stats=False,
-        otlp_endpoint=None  # Disable OTLP export to avoid connection errors
-    )
+    #Initialize OpenLIT instrumentation globally with console output disabled
+    # openlit.init(
+    #     tracer=langfuse._otel_tracer,
+    #     disable_batch=True,
+    #     collect_gpu_stats=False,
+    #     otlp_endpoint=None  # Disable OTLP export to avoid connection errors
+    # )
 
     print("Tracing initialized successfully")
 

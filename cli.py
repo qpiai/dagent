@@ -1,22 +1,26 @@
+#!/usr/bin/env python3
 import asyncio
 import sys
 from pathlib import Path
 
-# Add paths for imports
+# Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from framework import AgenticDAG
 
 
 async def main():
-    """Demo using the AgenticDAG framework"""
-    framework = AgenticDAG()
-    query = "use every tool and agent in your arsenal, think of a novel query and using the planner create a complicated DAG. I want to test every functionality of this system."
+    if len(sys.argv) < 2:
+        print("Usage: python cli.py 'your query here'")
+        sys.exit(1)
 
+    query = " ".join(sys.argv[1:])
+
+    framework = AgenticDAG()
     result = await framework.execute(query)
 
     if result["success"]:
-        print("Execution successful!")
+        print("Execution completed successfully!")
     else:
         print(f"Execution failed: {result.get('error')}")
 

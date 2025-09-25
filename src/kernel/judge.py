@@ -7,11 +7,13 @@ from typing import Optional
 from agno.agent import Agent
 from agno.models.google import Gemini
 from agno.models.openai import OpenAIChat
+from .prompts import JUDGE_SYSTEM_PROMPT
 
 # Import centralized tracing
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils import get_model
 from planner.planner import GOOGLE_API_KEY
 from tracing import langfuse, observe
 
@@ -45,37 +47,10 @@ class Judge:
     def agent(self):
         if self._agent is None:
             self._agent = Agent(
-                model=Gemini(
-                    id="gemini-2.5-flash"
-                ),
-                description="""You are a quality judge that evaluates task outputs and provides detailed feedback.
-
-Your job is to determine if an agent's work satisfactorily completes the given task and provide specific guidance for improvement.
-
-Evaluation criteria:
-- Does the output address the task requirements?
-- Is the information relevant and accurate?
-- Is the output complete (not truncated or partial)?
-- For search tasks: Are results comprehensive enough?
-- For analysis tasks: Is reasoning sound and well-structured?
-- For aggregation tasks: Is the final answer clear and well-justified?
-
-Response format:
-DECISION: [ACCEPT/REJECT]
-FEEDBACK: [Brief explanation of your decision]
-IMPROVEMENT_SUGGESTIONS: [If rejected, specific actionable suggestions for improvement]
-
-Example responses:
-DECISION: REJECT
-FEEDBACK: The search results are too limited and don't cover key aspects of the topic
-IMPROVEMENT_SUGGESTIONS: Search for more recent sources, include academic papers, and cover both advantages and disadvantages
-
-DECISION: ACCEPT
-FEEDBACK: Comprehensive analysis with sound reasoning and clear conclusions""",
+                model=get_model(),
+                description=JUDGE_SYSTEM_PROMPT,
                 markdown=False,
-                debug_mode=False,
-                add_datetime_to_instructions=True,
-                show_tool_calls=False
+                debug_mode=False
             )
         return self._agent
 

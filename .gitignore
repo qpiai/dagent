@@ -185,3 +185,11 @@ logs/
 secrets.json
 config.json
 credentials.json
+
+# Generated outputs and plans
+generated_plan.json
+*_report.md
+*_visualizer.py
+*.png
+*.jpg
+*.jpeg

@@ -163,7 +163,7 @@ async def build_dag_from_plan(plan) -> DAG:
     from kernel.profiles import ProfileGenerator
     profile_generator = ProfileGenerator()
 
-    # Generate profiles for single agent nodes only
+    # Generate profiles for both single agent and team nodes
     profile_tasks = {}
     for task_id, subtask_data in subtasks.items():
         data = _extract_node_data(subtask_data)
@@ -175,8 +175,13 @@ async def build_dag_from_plan(plan) -> DAG:
                 data['tool_allowlist'],
                 data['dependencies']
             )
+        elif data['node_type'] == 'AGENT_TEAM':
+            profile_tasks[task_id] = profile_generator.generate_team_profile(
+                data['task_description'],
+                data['team_config']
+            )
 
-    # Wait for all profiles to be generated (only for single agent nodes)
+    # Wait for all profiles to be generated
     if profile_tasks:
         profile_results = await asyncio.gather(*profile_tasks.values())
         generated_profiles = dict(zip(profile_tasks.keys(), profile_results))
@@ -188,12 +193,13 @@ async def build_dag_from_plan(plan) -> DAG:
         data = _extract_node_data(subtask_data)
 
         if data['node_type'] == 'AGENT_TEAM':
-            # Team node
+            # Team node with generated prompt
             node = DAGNode(
                 id=task_id,
                 task_description=data['task_description'],
                 node_type="AGENT_TEAM",
                 team_config=data['team_config'],
+                generated_system_prompt=generated_profiles[task_id],
                 dependencies=data['dependencies']
             )
         else:
