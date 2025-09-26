@@ -1,261 +1,264 @@
-# Dagent 🤖
+# Dagent
 
-A powerful multi-agent DAG (Directed Acyclic Graph) framework that intelligently breaks down complex queries into manageable subtasks and orchestrates AI agents to solve them efficiently through parallel execution.
+> **Multi-agent orchestration framework for complex query execution**
 
-## 🚀 Key Features
+Dagent decomposes complex queries into executable DAGs and coordinates specialized agents for efficient parallel execution with built-in quality control.
 
-- **🔄 DAG-based Parallel Execution** - Maximizes performance by running independent tasks simultaneously
-- **🧠 Intelligent Planning** - Automatically decomposes queries into optimal atomic tasks
-- **⚖️ Actor-Critic Architecture** - Built-in quality control with judge evaluation and retry logic
-- **🎯 Dynamic Agent Profiles** - Generates specialized agent profiles based on task complexity and type
-- **🔗 Smart Context Engineering** - Intelligently passes context between dependent tasks
-- **🛠️ Multi-Tool Integration** - Financial data, web search, and file operations
+<div align="center">
+  <img src="assets/architecture.png" alt="Dagent Architecture" width="600"/>
 
-## 📋 Quick Start
+  *Multi-agent DAG execution with parallel task coordination and judge-based quality control*
+</div>
+
+---
+
+## Overview
+
+Dagent implements a sophisticated multi-agent system that automatically:
+- **Decomposes complex queries** into atomic, parallelizable tasks
+- **Builds execution graphs** with optimal dependency resolution
+- **Orchestrates specialized agents** with domain-specific tooling
+- **Enforces quality control** through actor-critic evaluation loops
+- **Manages context flow** between interdependent operations
+
+### Core Capabilities
+
+| Component | Function | Implementation |
+|-----------|----------|----------------|
+| **Planner** | Query decomposition | LLM-based task analysis with dependency mapping |
+| **DAG Builder** | Graph construction | Parallel execution optimization with constraint solving |
+| **Kernel** | Agent orchestration | Concurrent task scheduling with context management |
+| **Judge** | Quality control | Actor-critic loops with retry mechanisms |
+| **Tools** | Domain integration | Financial data, web search, file operations |
+
+## Quick Start
 
 ### Prerequisites
+
 - Python 3.8+
-- At least one AI provider API key (OpenAI or Google)
+- API key for at least one LLM provider (OpenAI or Google)
+- Exa API key for web search capabilities
 
 ### Installation
 
 ```bash
+# Clone repository
 git clone https://github.com/your-username/dagent.git
 cd dagent
+
+# Install dependencies
 pip install -r requirements.txt
-```
 
-### Environment Setup
-
-1. Copy the example environment file:
-```bash
+# Configure environment
 cp .env.example .env
 ```
 
-2. Configure your API keys in `.env`:
-```env
-# AI Model Providers (need at least one)
-OPENAI_API_KEY=your_openai_api_key_here
-GOOGLE_API_KEY=your_google_api_key_here
+### Configuration
 
-# Web Search (required)
-EXA_API_KEY=your_exa_api_key_here
+Edit `.env` with your API credentials:
 
-# Optional: Tracing and observability
-LANGFUSE_PUBLIC_KEY=your_langfuse_public_key
-LANGFUSE_SECRET_KEY=your_langfuse_secret_key
+```bash
+# Required: AI Model Providers (choose at least one)
+OPENAI_API_KEY=sk-your-openai-key-here
+GOOGLE_API_KEY=your-google-ai-key-here
+
+# Required: Search API
+EXA_API_KEY=your-exa-search-key-here
+
+# Optional: Observability Stack
+LANGFUSE_PUBLIC_KEY=pk-lf-your-public-key
+LANGFUSE_SECRET_KEY=sk-lf-your-secret-key
 LANGFUSE_HOST=https://cloud.langfuse.com
 ```
 
-### Running Your First Query
+### Basic Usage
 
 ```python
 import asyncio
 from src.framework import AgenticDAG
 
 async def main():
-    # Initialize the framework
     framework = AgenticDAG()
 
-    # Execute a complex query
     result = await framework.execute(
-        "Analyze Apple's stock performance over the last year and create a comprehensive report"
+        "Analyze Tesla's Q3 performance and generate a comprehensive investment report"
     )
 
     if result["success"]:
-        print("✅ Task completed successfully!")
-        print(f"📊 Summary: {result['summary']}")
+        print(f"✓ Execution completed: {result['summary']['successful_tasks']}/{result['summary']['total_tasks']} tasks")
+        # Access detailed results
+        for task_id, task_result in result["execution_results"].items():
+            print(f"  - {task_id}: {task_result.execution_time:.2f}s")
     else:
-        print(f"❌ Task failed: {result.get('error')}")
+        print(f"✗ Execution failed: {result['error']}")
 
 if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-## 🏗️ Architecture Deep Dive
+## Usage
 
-### 1. DAG-based Parallel Execution
-Dagent converts your query into a **Directed Acyclic Graph** where:
-- **Nodes** represent atomic tasks (each handled by a specialized agent)
-- **Edges** represent dependencies between tasks
-- **Independent tasks run in parallel** to maximize throughput
-- **Dependencies ensure correct execution order**
-
-Example DAG flow:
-```
-[Search Financial Data] ──┐
-                          ├─→ [Analyze Trends] ──┐
-[Search News Articles] ───┘                     ├─→ [Generate Report] ──→ [Save to File]
-                                                 │
-[Get Analyst Reports] ──────────────────────────┘
-```
-
-### 2. Intelligent Planning System
-The **Planner** analyzes your query and:
-- **Categorizes query type** (financial, research, analysis, etc.)
-- **Decomposes into atomic tasks** that can be executed independently
-- **Selects optimal tools** for each task
-- **Establishes dependencies** for logical execution flow
-- **Chooses agent profiles** based on task complexity
-
-### 3. Actor-Critic with Judge System
-Each task goes through quality control:
-- **Actor**: The primary agent executes the task
-- **Critic (Judge)**: Evaluates output quality and provides feedback
-- **Retry Logic**: Failed tasks retry with specific judge feedback
-- **Quality Assurance**: Ensures high-quality outputs before proceeding
-
-### 4. Dynamic Profile Generation
-Agents are automatically configured with:
-- **Task Type**: SEARCH, THINK, AGGREGATE, or ACT
-- **Complexity Level**: QUICK, THOROUGH, or DEEP
-- **Output Format**: DATA, ANALYSIS, or REPORT
-- **Reasoning Style**: DIRECT, ANALYTICAL, or CREATIVE
-
-### 5. Smart Context Engineering
-- **Dependency Resolution**: Tasks receive relevant outputs from predecessors
-- **Context Filtering**: Only relevant information is passed to avoid token waste
-- **State Management**: Global context tracks file modifications and system state
-
-## 🛠️ Available Tools
-
-### YFinanceTools
-- Stock prices and financial metrics
-- Company fundamentals and analyst recommendations
-- Historical data and market information
-
-### WebSearchTools
-- Web content retrieval via Exa API
-- News articles and research papers
-- Market analysis and sentiment data
-
-### FileEditorTools
-- Create, read, and modify files
-- Generate scripts and reports
-- Save analysis results
-
-## 🎯 Agent Types Explained
-
-### SEARCH Agents
-- **Purpose**: Information retrieval and data gathering
-- **Tools**: WebSearchTools, YFinanceTools
-- **Output**: Structured data and search results
-
-### THINK Agents
-- **Purpose**: Analysis, reasoning, and interpretation
-- **Tools**: None (pure reasoning)
-- **Output**: Insights, analysis, and conclusions
-
-### AGGREGATE Agents
-- **Purpose**: Combine and synthesize information
-- **Tools**: Minimal (data combination focused)
-- **Output**: Comprehensive summaries and reports
-
-### ACT Agents
-- **Purpose**: File operations and system modifications
-- **Tools**: FileEditorTools
-- **Output**: Created files, modified system state
-
-## 📊 Example Use Cases
-
-### Financial Analysis
 ```python
-result = await framework.execute(
-    "Compare Tesla and Apple's Q4 performance, including stock trends, "
-    "earnings analysis, and analyst sentiment. Create a detailed report."
-)
+import asyncio
+from src.framework import AgenticDAG
+
+async def main():
+    framework = AgenticDAG()
+
+    result = await framework.execute(
+        "Analyze Tesla's financial performance and create a comprehensive report"
+    )
+
+    if result["success"]:
+        print(f"Completed {result['summary']['successful_tasks']} tasks")
+    else:
+        print(f"Failed: {result.get('error')}")
+
+asyncio.run(main())
 ```
 
-### Market Research
-```python
-result = await framework.execute(
-    "Research the latest AI chip market trends, identify key players, "
-    "analyze competitive landscape, and project future growth."
-)
+## System Architecture
+
+### Execution Pipeline
+
+Dagent processes queries through a four-stage pipeline with automatic parallelization and quality control:
+
+```mermaid
+graph LR
+    A[Query Input] --> B[Planning Phase]
+    B --> C[DAG Construction]
+    C --> D[Agent Orchestration]
+    D --> E[Quality Control]
+    E --> F[Results Output]
+
+    subgraph Planning Phase
+        B1[Query Analysis] --> B2[Task Decomposition]
+        B2 --> B3[Dependency Mapping]
+    end
+
+    subgraph DAG Construction
+        C1[Graph Building] --> C2[Parallel Optimization]
+        C2 --> C3[Agent Assignment]
+    end
 ```
-
-### Data Analysis & Visualization
-```python
-result = await framework.execute(
-    "Get NVIDIA's stock data for the past 2 years, create visualizations "
-    "showing key trends, and generate an executive summary."
-)
-```
-
-## 🔍 Monitoring & Debugging
-
-### Generated Plans
-Every execution creates `generated_plan.json` showing:
-- Query decomposition rationale
-- Task structure and dependencies
-- Agent profile assignments
-- Tool allocations
 
 ### Execution Flow
-Watch real-time execution with:
-- Round-by-round task execution
-- Parallel task coordination
-- Judge evaluations and retries
-- Context flow between tasks
 
-### Performance Metrics
-Track execution with:
-- Task completion times
-- Success/failure rates
-- Judge evaluation scores
-- Total execution time
+| Stage | Process | Output |
+|-------|---------|--------|
+| **1. Planning** | LLM analyzes query complexity and domain requirements | Atomic task list with dependencies |
+| **2. DAG Build** | Constructs execution graph optimized for parallelism | Node graph with agent profiles |
+| **3. Orchestration** | Deploys agents with tools, manages concurrent execution | Task results with context |
+| **4. Quality Control** | Judge evaluates outputs, triggers retries as needed | Validated final results |
 
-## 🚦 Best Practices
+### Parallel Execution Model
 
-### Query Formulation
-- **Be specific** about what you want
-- **Include output format** preferences (report, analysis, data)
-- **Mention key constraints** (time periods, data sources)
+Tasks execute in dependency-respecting rounds with maximum parallelization:
+
+```
+Round 1: [Financial_Data_Search] [News_Content_Search] [Analyst_Report_Fetch]
+            ↓                           ↓                         ↓
+Round 2:                    [Trend_Analysis] ←──────────────────────┘
+                                    ↓
+Round 3:                   [Report_Generation]
+                                    ↓
+Round 4:                     [File_Output]
+```
+
+### Agent Profiles
+Agents are dynamically configured across four dimensions:
+
+- **Task Types**: SEARCH (data retrieval), THINK (analysis), AGGREGATE (synthesis), ACT (file operations)
+- **Complexity Levels**: QUICK (2K tokens), THOROUGH (4K tokens), DEEP (6K tokens)
+- **Output Formats**: DATA (structured), ANALYSIS (insights), REPORT (documents)
+- **Reasoning Styles**: DIRECT (efficient), ANALYTICAL (systematic), CREATIVE (exploratory)
+
+### Judge System
+The Actor-Critic architecture implements quality control through:
+- Output evaluation against task requirements
+- Feedback generation for failed attempts
+- Retry orchestration with context injection
+- Quality threshold enforcement
+
+## Available Tools
+
+### YFinanceTools
+Financial data interface providing:
+- Real-time and historical stock prices
+- Company fundamentals and financial statements
+- Analyst recommendations and market metrics
+
+### WebSearchTools
+Web content retrieval via Exa API supporting:
+- News article and research paper search
+- Market analysis and sentiment data
+- General knowledge and current events
+
+### FileEditorTools
+File system operations including:
+- File creation, modification, and deletion
+- Script generation and execution
+- Report formatting and output
+
+## Technical Implementation
+
+### Context Engineering
+The system maintains execution context through:
+- **Dependency Resolution**: Automatic context propagation between dependent tasks
+- **State Tracking**: Global state management for file modifications and system changes
+- **Token Optimization**: Context filtering to minimize LLM token consumption
+
+### Parallel Execution
+The kernel implements concurrent task execution with:
+- Round-based scheduling for dependency satisfaction
+- Exception isolation preventing cascade failures
+- Resource management for tool allocation
 
 ### Error Handling
-- Check `result["success"]` before accessing data
-- Review `generated_plan.json` if execution fails
-- Use specific, actionable queries for better results
+Robust error recovery through:
+- Task-level retry with judge feedback integration
+- Graceful degradation for partial failures
+- Comprehensive logging and debugging output
 
-### Performance Optimization
-- Queries with natural parallelism perform best
-- Complex analysis benefits from DEEP complexity agents
-- File operations should be explicit in your request
+## Development
 
-## 📁 Project Structure
-
+### Project Structure
 ```
 dagent/
 ├── src/
-│   ├── framework.py          # Main entry point
-│   ├── planner/              # Query planning and decomposition
-│   │   ├── planner.py        # Core planning logic
-│   │   └── prompts.py        # Planning prompts and examples
-│   ├── dag/                  # DAG construction and management
-│   │   └── dag.py            # DAG building from plans
-│   ├── kernel/               # Agent orchestration and execution
-│   │   ├── kernel.py         # Main execution engine
-│   │   ├── judge.py          # Quality evaluation system
-│   │   └── profiles.py       # Agent profile generation
-│   ├── tools/                # Available agent tools
-│   │   ├── yfinance_tools.py # Financial data tools
-│   │   ├── web_search.py     # Web search capabilities
-│   │   └── file_editor.py    # File operation tools
-│   └── utils/                # Utilities and helpers
-│       └── model_factory.py  # AI model selection
-├── main.py                   # Example usage
-├── .env.example              # Environment template
+│   ├── framework.py          # Main orchestration interface
+│   ├── planner/              # Query decomposition and planning
+│   ├── dag/                  # Graph construction and optimization
+│   ├── kernel/               # Execution engine and agent management
+│   ├── tools/                # Tool implementations
+│   └── utils/                # Shared utilities
+├── main.py                   # Example implementation
 └── requirements.txt          # Dependencies
 ```
 
-## 🤝 Contributing
+### Extending Functionality
+New tools can be integrated by:
+1. Extending `BaseAgnoTool` interface
+2. Registering in the tool registry
+3. Updating planner tool selection logic
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on how to contribute to Dagent.
+## Debugging
 
-## 📄 License
+Generated execution plans are saved to `generated_plan.json` containing:
+- Task decomposition rationale
+- Dependency graph structure
+- Agent profile assignments
+- Tool allocation decisions
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Monitor execution through real-time logging of:
+- Task scheduling and parallel execution
+- Judge evaluations and retry attempts
+- Context flow between dependent tasks
 
----
+## Contributing
 
-**Dagent**: Intelligent multi-agent orchestration for complex problem solving 🚀
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines and contribution process.
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
