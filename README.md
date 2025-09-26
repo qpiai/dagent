@@ -1,6 +1,6 @@
 # Dagent 🤖
 
-A powerful multi-agent DAG (Directed Acyclic Graph) framework that intelligently breaks down complex queries into atomic tasks and orchestrates AI agents to solve them efficiently through parallel execution.
+A powerful multi-agent DAG (Directed Acyclic Graph) framework that intelligently breaks down complex queries into manageable subtasks and orchestrates AI agents to solve them efficiently through parallel execution.
 
 ## 🚀 Key Features
 
