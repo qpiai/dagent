@@ -255,6 +255,14 @@ Monitor execution through real-time logging of:
 - Judge evaluations and retry attempts
 - Context flow between dependent tasks
 
+## Roadmap
+
+| Feature | Status |
+|---------|--------|
+| Iterative Replanning | Planned |
+| Dynamic Replanning | Planned |
+| Sandbox Environment | Planned |
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines and contribution process.
