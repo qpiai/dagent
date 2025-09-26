@@ -5,7 +5,7 @@
 Dagent decomposes complex queries into executable DAGs and coordinates specialized agents for efficient parallel execution with built-in quality control.
 
 <div align="center">
-  <img src="assets/architecture.png" alt="Dagent Architecture" width="600"/>
+  <img src="assets/architecture.png" alt="Dagent Architecture" width="200" style="max-width: 100%"/>
 
   *Multi-agent DAG execution with parallel task coordination and judge-based quality control*
 </div>
