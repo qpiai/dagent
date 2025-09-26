@@ -267,6 +267,11 @@ Monitor execution through real-time logging of:
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines and contribution process.
 
+## Acknowledgments
+
+- Built with [Agno](https://github.com/agno-agi/agno) framework
+- DAG topological sorting powered by Kahn's algorithm
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
